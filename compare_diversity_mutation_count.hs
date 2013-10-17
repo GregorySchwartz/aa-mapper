@@ -10,6 +10,7 @@ import Data.List
 import Data.Char
 import qualified Data.Map as M
 import Data.Ord
+import Control.Applicative
 import System.IO
 import System.Environment
 
@@ -20,12 +21,10 @@ type ID                = Int
 type Sequence          = String
 type Clone             = Sequence
 type Germline          = Sequence
-type MutationCount     = Int
 type Position          = Int
 
 -- Advanced
 type Mutation          = (Char, Char)
-type MutationCountList = [(Position, MutationCount)]
 type CloneMap    = M.Map (ID, Germline) [Clone]
 type MutationMap = M.Map Position [Mutation]
 type CloneMutMap = M.Map (ID, Germline) MutationMap
@@ -42,6 +41,35 @@ diversity order sample
     p_i x        = ((fromIntegral . length $ x) :: Double) /
                    ((fromIntegral . length $ sample) :: Double)
     speciesList  = group . sort $ sample
+
+-- Calculates the binary coefficient
+choose :: (Integral a) => a -> a -> a
+choose n 0 = 1
+choose 0 k = 0
+choose n k = choose (n - 1) (k - 1) * n `div` k
+
+-- Returns the rarefaction curve for each position in a list
+rarefactionCurve :: (Eq a, Ord a) => [a] -> [Double]
+rarefactionCurve xs = map rarefact [1..n_total]
+  where
+    rarefact n
+        | n == 0       = 0
+        | n == 1       = 1
+        | n == n_total = k
+        | otherwise    = k - ((1 / (fromIntegral (choose n_total n))) * inner n)
+    inner n = fromIntegral                              .
+              sum                                       .
+              map (\g -> choose (n_total - length g) n) $
+              grouped
+    n_total = length xs 
+    k       = genericLength grouped
+    grouped = group . sort $ xs
+
+-- Calculates the percent of the curve that is above 95% of height of the curve
+rarefactionViable :: [Double] -> Double
+rarefactionViable xs = (genericLength valid / genericLength xs) * 100
+  where
+    valid = dropWhile (< (0.95 * last xs)) xs
 
 -- Takes a DW2 fasta file string and returns a CloneMap in order to
 -- generate the basic building block for the mutation counting.
@@ -123,7 +151,7 @@ classifyAA aa
     | aa `elem` "IVLFCMW" = "Hydrophobic"
     | aa `elem` "AGTSYPH" = "Neutral"
     | aa `elem` "NDQEKR"  = "Hydrophilic"
-    | aa == '*' = "Stop"
+    | aa == '*'           = "Stop"
     | otherwise           = error ("Amino acid not found: " ++ [aa])
 
 -- CLassify a position based on the numbers of types of hydrophobicity
@@ -233,6 +261,22 @@ printMutStabAAUse mutBool mutationMap = header ++ body
     mutUniquer True        = map snd . filterMutStab isMutation
     mutUniquer False       = map fst . filterMutStab (not . isMutation)
 
+-- Return the results of the sample rarefaction percents as a string
+printRarefaction :: MutationMap -> String
+printRarefaction mutationMap = header ++ body
+  where
+    header           = "position,percent_above\n"
+    body             = unlines                          .
+                       map mapLine                      .
+                       M.toAscList                      $
+                       mutationMap
+    mapLine (x, xs) = show x ++
+                      ","    ++
+                      (show . percent $ xs)
+    percent         = rarefactionViable . rarefactionCurve . mutList
+    mutList         = filterMutStab taut
+    taut _          = True
+
 main = do
     (orderContents:
      source:
@@ -241,7 +285,8 @@ main = do
      saveMutDiversityCounts:
      saveStabDiversityCounts:
      saveMutAAUse:
-     saveStabAAUse:[]) <- getArgs
+     saveStabAAUse:
+     saveRarefaction:[]) <- getArgs
 
     contents <- readFile source
     let order = (read orderContents) :: Double
@@ -260,3 +305,4 @@ main = do
     writeFile saveStabDiversityCounts $ printMutStabTypeCounts False order combinedCloneMutMap
     writeFile saveMutAAUse $ printMutStabAAUse True combinedCloneMutMap
     writeFile saveStabAAUse $ printMutStabAAUse False combinedCloneMutMap
+    writeFile saveRarefaction $ printRarefaction combinedCloneMutMap
