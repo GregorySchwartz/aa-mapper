@@ -13,21 +13,164 @@ import Data.Ord
 import Control.Applicative
 import System.IO
 import System.Environment
+import Options.Applicative
 
 import qualified Data.List.Split as Split
 
+-- Command line arguments
+data Options = Options { inputOrder                :: Double
+                       , inputFasta                :: String
+                       , inputDiversity            :: String
+                       , unitFlag                  :: GeneticUnit
+                       , outputMutCounts           :: String
+                       , outputStabCounts          :: String
+                       , outputMutDiversityCounts  :: String
+                       , outputStabDiversityCounts :: String
+                       , outputMutAAUse            :: String
+                       , outputStabAAUse           :: String
+                       , outputRarefaction         :: String
+                       , outputChangedAAMap        :: String
+                       }
+
+-- Algebraic
+data GeneticUnit = AminoAcid | Codon
+
 -- Basic
+type AminoAcid         = Char
+type Codon             = String
 type ID                = Int
-type Sequence          = String
-type Clone             = Sequence
-type Germline          = Sequence
+type Sequence a        = [a]
+type Clone a           = Sequence a
+type Germline a        = Sequence a
 type Position          = Int
+type Diversity         = Int
+type Size              = Int
 
 -- Advanced
-type Mutation          = (Char, Char)
-type CloneMap    = M.Map (ID, Germline) [Clone]
-type MutationMap = M.Map Position [Mutation]
-type CloneMutMap = M.Map (ID, Germline) MutationMap
+type Mutation a    = (a, a)
+type CloneMap a    = M.Map (ID, Germline a) [Clone a]
+type MutationMap a = M.Map Position [Mutation a]
+type CloneMutMap a = M.Map (ID, Germline a) (MutationMap a)
+type DiversityMap  = M.Map Position Diversity
+type ChangedAAMap  = M.Map Diversity [[(AminoAcid, AminoAcid, Size)]]
+
+-- Command line options
+options :: Parser Options
+options = Options
+      <$> option
+          ( long "inputOrder"
+         <> short 'o'
+         <> metavar "ORDER"
+         <> value 1
+         <> help "The order of true diversity" )
+      <*> strOption
+          ( long "inputFasta"
+         <> short 'i'
+         <> metavar "FILE"
+         <> value ""
+         <> help "The fasta file containing the germlines and clones" )
+      <*> strOption
+          ( long "inputDiversity"
+         <> short 'd'
+         <> metavar "FILE"
+         <> value ""
+         <> help "The csv file containing the diversities at each position\
+                 \ (must be generated into a specific format" )
+      <*> flag AminoAcid Codon
+          ( long "nucleotides"
+         <> short 'u'
+         <> help "Whether these sequences are of nucleotides (Codon) or\
+                 \ amino acids (AminoAcid)" )
+      <*> strOption
+          ( long "outputMutCounts"
+         <> short 'm'
+         <> metavar "FILE"
+         <> value ""
+         <> help "The output file for the changed amino acid counts" )
+      <*> strOption
+          ( long "outputStabCounts"
+         <> short 's'
+         <> metavar "File"
+         <> value ""
+         <> help "The output file for the maintained amino acid counts" )
+      <*> strOption
+          ( long "outputMutDiversityCounts"
+         <> short 'M'
+         <> metavar "FILE"
+         <> value ""
+         <> help "The output file for the hanged amino acid diversities" )
+      <*> strOption
+          ( long "outputStabDiversityCounts"
+         <> short 'S'
+         <> metavar "FILE"
+         <> value ""
+         <> help "The output file for the maintained amino acid diversities")
+      <*> strOption
+          ( long "outputMutAAUse"
+         <> short 'j'
+         <> metavar "FILE"
+         <> value ""
+         <> help "The output file for the specific changed amino acids used" )
+      <*> strOption
+          ( long "outputStabAAUse"
+         <> short 'k'
+         <> metavar "FILE"
+         <> value ""
+         <> help "The output file for the specific maintained amino acids used" )
+      <*> strOption
+          ( long "outputRarefaction"
+         <> short 'r'
+         <> metavar "FILE"
+         <> value ""
+         <> help "The output file for the rarefaction curves" )
+      <*> strOption
+          ( long "outputChangedAAMap"
+         <> short 'c'
+         <> metavar "FILE"
+         <> value ""
+         <> help "The output file for the map of changed amino acids" )
+
+-- Converts a codon to an amino acid
+-- Remember, if there is an "N" in that DNA sequence, then it is invalid
+codon2aa :: Codon -> AminoAcid
+codon2aa x
+    | codon `elem` ["GCT", "GCC", "GCA", "GCG"]               = 'A'
+    | codon `elem` ["CGT", "CGC", "CGA", "CGG", "AGA", "AGG"] = 'R'
+    | codon `elem` ["AAT", "AAC"]                             = 'N'
+    | codon `elem` ["GAT", "GAC"]                             = 'D'
+    | codon `elem` ["TGT", "TGC"]                             = 'C'
+    | codon `elem` ["CAA", "CAG"]                             = 'Q'
+    | codon `elem` ["GAA", "GAG"]                             = 'E'
+    | codon `elem` ["GGT", "GGC", "GGA", "GGG"]               = 'G'
+    | codon `elem` ["CAT", "CAC"]                             = 'H'
+    | codon `elem` ["ATT", "ATC", "ATA"]                      = 'I'
+    | codon `elem` ["ATG"]                                    = 'M'
+    | codon `elem` ["TTA", "TTG", "CTT", "CTC", "CTA", "CTG"] = 'L'
+    | codon `elem` ["AAA", "AAG"]                             = 'K'
+    | codon `elem` ["TTT", "TTC"]                             = 'F'
+    | codon `elem` ["CCT", "CCC", "CCA", "CCG"]               = 'P'
+    | codon `elem` ["TCT", "TCC", "TCA", "TCG", "AGT", "AGC"] = 'S'
+    | codon `elem` ["ACT", "ACC", "ACA", "ACG"]               = 'T'
+    | codon `elem` ["TGG"]                                    = 'W'
+    | codon `elem` ["TAT", "TAC"]                             = 'Y'
+    | codon `elem` ["GTT", "GTC", "GTA", "GTG"]               = 'V'
+    | codon `elem` ["TAA", "TGA", "TAG"]                      = '*'
+    | codon `elem` ["---", "..."]                             = '-'
+    | codon == "~~~"                                          = '~'
+    | 'N' `elem` codon                                        = '~'
+    | '-' `elem` codon                                        = '~'
+    | otherwise                                               = error errorMsg
+  where
+    codon    = map toUpper x
+    errorMsg = "Unidentified codon: " ++ codon
+
+-- Translates a string of nucleotides
+translate :: String -> Sequence AminoAcid
+translate = map codon2aa . filter ((== 3) . length) . Split.chunksOf 3
+
+-- Takes two strings, returns Hamming distance
+hamming :: String -> String -> Int
+hamming xs ys = length $ filter not $ zipWith (==) xs ys
 
 -- Returns the diversity of a list of things
 diversity :: (Ord b) => Double -> [b] -> Double
@@ -61,7 +204,7 @@ rarefactionCurve xs = map rarefact [1..n_total]
               sum                                       .
               map (\g -> choose (n_total - length g) n) $
               grouped
-    n_total = length xs 
+    n_total = length xs
     k       = genericLength grouped
     grouped = group . sort $ xs
 
@@ -75,29 +218,64 @@ rarefactionViable xs = (genericLength valid / genericLength xs) * 100
 -- generate the basic building block for the mutation counting.
 -- Note: Several repeating germlines, so they need a unique identifier (an
 -- integer in this case).
-generateCloneMap :: String -> CloneMap
+generateCloneMap :: String -> CloneMap AminoAcid
 generateCloneMap = M.fromList . getSequences
   where
-    getSequences            = map filterAssocList . assocList
+    getSequences                   = map filterAssocList . assocList
     filterAssocList ((x1, x2), xs) = ((x1, last . filterHeaders $ x2),
                                       filterHeaders xs)
-    filterHeaders           = filter (\x -> head x /= '>')
-    assocList               = map assocMap . germlineSplit
-    assocMap (x, y)         = ((x, germline y), clones y)
-    germlineSplit           = zip [0..] . filter (/= "") . Split.splitOn ">>"
-    germline                = take 2 . lines
-    clones                  = drop 2 . lines
+    filterHeaders                  = filter (\x -> head x /= '>')
+    assocList                      = map assocMap . germlineSplit
+    assocMap (x, y)                = ((x, germline y), clones y)
+    germlineSplit                  = zip [0..]      .
+                                     filter (/= "") .
+                                     Split.splitOn ">>"
+    germline                       = take 2 . lines
+    clones                         = drop 2 . lines
+
+-- Takes a DW2 fasta file string and returns a CloneMap in order to
+-- generate the basic building block for the mutation counting.
+-- Note: Several repeating germlines, so they need a unique identifier (an
+-- integer in this case). This version is for Codons.
+generateCodonCloneMap :: String -> CloneMap Codon
+generateCodonCloneMap = M.fromList . map getCodonSplit . getSequences
+  where
+    getCodonSplit ((x1, x2), xs)   = ((x1, fullCodon . Split.chunksOf 3 $ x2),
+                                      map (fullCodon . Split.chunksOf 3) xs)
+    fullCodon                      = filter ((==3) . length)
+    getSequences                   = map filterAssocList . assocList
+    filterAssocList ((x1, x2), xs) = ((x1, last . filterHeaders $ x2),
+                                      filterHeaders xs)
+    filterHeaders                  = filter (\x -> head x /= '>')
+    assocList                      = map assocMap . germlineSplit
+    assocMap (x, y)                = ((x, germline y), clones y)
+    germlineSplit                  = zip [0..]      .
+                                     filter (/= "") .
+                                     Split.splitOn ">>"
+    germline                       = take 2 . lines
+    clones                         = drop 2 . lines
 
 -- Checks if a pair is actually a mutation
-isMutation :: Mutation -> Bool
+isMutation :: Mutation AminoAcid -> Bool
 isMutation (x, y)
     | x == y    = False
     | otherwise = True
 
+isCodonMutation :: Mutation Codon -> Bool
+isCodonMutation (x, y)
+    | codon2aa x == codon2aa y = False
+    | otherwise                = True
+
+-- Checks if a pair is actually a mutation. Can only be done with codons.
+isSilentMutation :: Mutation Codon -> Bool
+isSilentMutation (x, y)
+    | x /= y && codon2aa x == codon2aa y = True
+    | otherwise = False
+
 -- Return the mutations if they exist between the germline and a clone
-countMutations :: Germline ->
-                  Clone    ->
-                  [(Position, Mutation)]
+countMutations :: Germline a ->
+                  Clone a    ->
+                  [(Position, Mutation a)]
 countMutations germline clone = mutation germline clone
   where
     mutation x y         = zip [1..] . zip x $ y
@@ -105,9 +283,9 @@ countMutations germline clone = mutation germline clone
 -- Takes a list of mutations and returns the mutations (or stable) that are
 -- actual mutations (the mutation is not just the same character, which is
 -- stable) with no gaps.
-filterMutStab :: (Mutation -> Bool) ->
-                 [Mutation]         ->
-                 [Mutation]
+filterMutStab :: (Mutation AminoAcid -> Bool) ->
+                 [Mutation AminoAcid]         ->
+                 [Mutation AminoAcid]
 filterMutStab isWhat = filter filterRules
   where
     filterRules x    = isWhat x            &&
@@ -115,29 +293,94 @@ filterMutStab isWhat = filter filterRules
                        not (inTuple '.' x) &&
                        not (inTuple '~' x)
     inTuple c (x, y) = if x == c || y == c then True else False
+filterCodonMutStab :: (Mutation Codon -> Bool) ->
+                      [Mutation Codon]         ->
+                      [Mutation Codon]
+filterCodonMutStab isWhat = filter filterRules
+  where
+    filterRules x    = isWhat x            &&
+                       not (inTuple '-' x) &&
+                       not (inTuple '.' x) &&
+                       not (inTuple '~' x) &&
+                       not (inTuple 'N' x)
+    inTuple c (x, y)     = if c `elem` x || c `elem` y then True else False
 
 -- Filters the cloneMap to remove clones with 30 mutations or greater
-filterCloneMap :: CloneMap -> CloneMap
+filterCloneMap :: CloneMap AminoAcid -> CloneMap AminoAcid
 filterCloneMap = M.mapWithKey filterMutated
   where
     filterMutated k xs  = filter (not . isHighlyMutated (snd k)) xs
     isHighlyMutated k x = 30 <= (length . realMutations k $ x)
     realMutations k x   = filterMutStab isMutation .
-                          map snd                  .
-                          countMutations k         $
+                          map snd                      .
+                          countMutations k             $
+                          x
+
+-- Filters the cloneMap to remove clones with 30 mutations or greater, this
+-- is the nucleotide version. There is too much adhoc going on here,
+-- I don't like the state of this file.
+filterCodonCloneMap :: CloneMap Codon -> CloneMap Codon
+filterCodonCloneMap = M.mapWithKey filterMutated
+  where
+    filterMutated k xs  = filter (not . isHighlyMutated (snd k)) xs
+    isHighlyMutated k x = 30 <= (length . realMutations k $ x)
+    realMutations k x   = filterCodonMutStab isCodonMutation .
+                          map snd                      .
+                          countMutations k             $
                           x
 
 -- Join together mutation lists
-joinMutations :: [[(Position, Mutation)]] -> MutationMap
+joinMutations :: (Eq a) => [[(Position, Mutation a)]] -> MutationMap a
 joinMutations = M.map nub . groupedMutations
   where
     groupedMutations = M.fromListWith (++) . map (\(x, y) -> (x, [y])) . concat
 
--- Generate a CloneMutMap which will then be printed to save files
-generateCloneMutMap :: CloneMap -> CloneMutMap
+-- Generate a CloneMutMap which will then be printed to save files.
+generateCloneMutMap :: (Eq a) => CloneMap a -> CloneMutMap a
 generateCloneMutMap = M.mapWithKey gatherMutations
   where
     gatherMutations k xs = joinMutations . map (countMutations (snd k)) $ xs
+
+-- Generate  DiversityMap which contains the germline diversity at each
+-- position.
+generateDiversityMap :: String -> DiversityMap
+generateDiversityMap = M.fromList . map diverseTuple . csvFilter . csvParse
+  where
+    diverseTuple x = (read (splitComma x !! 2) :: Int
+                     , round' (read (splitComma x !! 3) :: Double))
+    csvFilter      = filter (\x -> isHeavy x && isOrder x && isWindow x)
+    isHeavy        = (==) "IGH" . flip (!!) 0 . splitComma
+    isOrder        = (==) "1" . flip (!!) 1 . splitComma
+    isWindow       = (==) "1" . flip (!!) 5 . splitComma
+    splitComma     = Split.splitOn ","
+    csvParse       = drop 1 . lines
+    round' x
+        | round x == 0 = 1
+        | otherwise    = round x
+
+-- Generate a ChangedAAMap which contains all of the aminoacids a certain
+-- amino acid at a certain diversity goes to.
+generateChangedAAMap :: [Int]             ->
+                        DiversityMap      ->
+                        MutationMap Codon ->
+                        ChangedAAMap
+generateChangedAAMap viablePos germDivMap = aaDivMap              .
+                                            M.filter (not . null) .
+                                            diversityMap          .
+                                            filterNonviablePos    .
+                                            realMutMap
+  where
+    aaDivMap                = M.map (\xs -> group . sort . map numMut $ xs)
+    realMutMap              = M.map (filterCodonMutStab isCodonMutation)
+    numMut (x, y)           = (codon2aa x, codon2aa y, hamming x y)
+    filterNonviablePos      = M.filterWithKey (\k _ -> elem k viablePos)
+    diversityMap            = M.fromListWith (++) .
+                              map keysToDiversity .
+                              M.toAscList
+    keysToDiversity (x, xs) = (getDiversity x, xs)
+    getDiversity x          = extractMaybe . M.lookup x $ germDivMap
+    extractMaybe (Just x)   = x
+    extractMaybe Nothing    = error "Clone position not in germline positions"
 
 -- Returns a list of stuff ordered by how many of a type of stuff there
 -- are, like [1,1,2,2,3,3,3,3,4,4,4,4,4] -> [[4,4,4,4,4], [3,3,3,3], [2,2],
@@ -182,7 +425,7 @@ classifyPosition aaList
                        map classifyAA $ aaList
 
 -- Return the Diversity Order 1 most important amino acids
-getImportantAA :: [Char] -> [Char]
+getImportantAA :: (Ord a) => Sequence a -> Sequence a
 getImportantAA mutList = concat . takeWhile biggerLength $ sortedMutList
   where
     biggerLength x = length x >= weight
@@ -192,9 +435,8 @@ getImportantAA mutList = concat . takeWhile biggerLength $ sortedMutList
     shannonDiv     = round . diversity 1 $ mutList
     sortedMutList  = groupLengthSort mutList
 
-
 -- Return the results of the mutation or stable counts as a string
-printMutStabCounts :: Bool -> MutationMap -> String
+printMutStabCounts :: Bool -> MutationMap AminoAcid -> String
 printMutStabCounts mutBool mutationMap = header ++ body
   where
     header           = "position,count,count_weight,hydrophobicity\n"
@@ -216,7 +458,7 @@ printMutStabCounts mutBool mutationMap = header ++ body
 -- Return the results of the different types of mutations or stable  as a
 -- string. Can basically just add "nub" with "snd" to mapLine. Awwwwwww yeah.
 -- The power of functional programming. :P
-printMutStabTypeCounts :: Bool -> Double -> MutationMap -> String
+printMutStabTypeCounts :: Bool -> Double -> MutationMap AminoAcid -> String
 printMutStabTypeCounts mutBool order mutationMap = header ++ body
   where
     header           = "position,count,count_weight,hydrophobicity\n"
@@ -235,7 +477,7 @@ printMutStabTypeCounts mutBool order mutationMap = header ++ body
     mutUniquer True  = map snd . filterMutStab isMutation
     mutUniquer False = map fst . filterMutStab (not . isMutation)
 
-printMutStabAAUse :: Bool -> MutationMap -> String
+printMutStabAAUse :: Bool -> MutationMap AminoAcid -> String
 printMutStabAAUse mutBool mutationMap = header ++ body
   where
     header           = "position,aa_use,count,count_weight\n"
@@ -262,7 +504,7 @@ printMutStabAAUse mutBool mutationMap = header ++ body
     mutUniquer False       = map fst . filterMutStab (not . isMutation)
 
 -- Return the results of the sample rarefaction percents as a string
-printRarefaction :: MutationMap -> String
+printRarefaction :: MutationMap AminoAcid -> String
 printRarefaction mutationMap = header ++ body
   where
     header           = "position,percent_above\n"
@@ -277,19 +519,31 @@ printRarefaction mutationMap = header ++ body
     mutList         = filterMutStab taut
     taut _          = True
 
-main = do
-    (orderContents:
-     source:
-     saveMutCounts:
-     saveStabCounts:
-     saveMutDiversityCounts:
-     saveStabDiversityCounts:
-     saveMutAAUse:
-     saveStabAAUse:
-     saveRarefaction:[]) <- getArgs
+printChangedAAMap :: ChangedAAMap -> String
+printChangedAAMap changedAAMap = header ++ body
+  where
+    header                = "diversity,germline,clone,mutations,size\n"
+    body                  = intercalate "\n" .
+                            map mapDiv       .
+                            M.toAscList      $
+                            changedAAMap
+    mapDiv (div, xs)      = intercalate "\n" . map (\ys -> mapLine div ys) $ xs
+    mapLine div xs        = show div ++ "," ++ lineFormat xs
+    lineFormat all@(x:xs) = [fst' x]          ++
+                            ","               ++
+                            [snd' x]          ++
+                            ","               ++
+                            (show . thd' $ x) ++
+                            ","               ++
+                            (show . length $ all)
+    fst' (x, _, _) = x
+    snd' (_, x, _) = x
+    thd' (_, _, x) = x
 
-    contents <- readFile source
-    let order = (read orderContents) :: Double
+geneticUnitBranch :: GeneticUnit -> Options -> IO ()
+geneticUnitBranch AminoAcid opts = do
+    contents <- readFile . inputFasta $ opts
+    let order = inputOrder opts
 
     let unfilteredCloneMap  = generateCloneMap contents
     let cloneMap            = filterCloneMap unfilteredCloneMap
@@ -299,10 +553,40 @@ main = do
                               M.toAscList       $
                               cloneMutMap
 
-    writeFile saveMutCounts $ printMutStabCounts True combinedCloneMutMap
-    writeFile saveStabCounts $ printMutStabCounts False combinedCloneMutMap
-    writeFile saveMutDiversityCounts $ printMutStabTypeCounts True order combinedCloneMutMap
-    writeFile saveStabDiversityCounts $ printMutStabTypeCounts False order combinedCloneMutMap
-    writeFile saveMutAAUse $ printMutStabAAUse True combinedCloneMutMap
-    writeFile saveStabAAUse $ printMutStabAAUse False combinedCloneMutMap
-    writeFile saveRarefaction $ printRarefaction combinedCloneMutMap
+    writeFile (outputMutCounts opts) $ printMutStabCounts True combinedCloneMutMap
+    writeFile (outputStabCounts opts) $ printMutStabCounts False combinedCloneMutMap
+    writeFile (outputMutDiversityCounts opts) $ printMutStabTypeCounts True order combinedCloneMutMap
+    writeFile (outputStabDiversityCounts opts) $ printMutStabTypeCounts False order combinedCloneMutMap
+    writeFile (outputMutAAUse opts) $ printMutStabAAUse True combinedCloneMutMap
+    writeFile (outputStabAAUse opts) $ printMutStabAAUse False combinedCloneMutMap
+    writeFile (outputRarefaction opts) $ printRarefaction combinedCloneMutMap
+geneticUnitBranch Codon opts = do
+    contents <- readFile . inputFasta $ opts
+    diversityContents <- readFile . inputDiversity $ opts
+
+    let viablePos     = [25..30] ++ [35..59] ++ [63..72] ++ [74..106]
+    let divMap        = generateDiversityMap diversityContents
+    let unfilteredCloneMap  = generateCodonCloneMap contents
+    let cloneMap            = filterCodonCloneMap unfilteredCloneMap
+    let cloneMutMap         = generateCloneMutMap cloneMap
+    let combinedCloneMutMap = M.unionsWith (++) .
+                              map snd           .
+                              M.toAscList       $
+                              cloneMutMap
+
+    let changedAAMap = generateChangedAAMap viablePos divMap combinedCloneMutMap
+
+    writeFile (outputChangedAAMap opts) $ printChangedAAMap changedAAMap
+
+compareDiversityMutationCounts :: Options -> IO ()
+compareDiversityMutationCounts opts = do
+    geneticUnitBranch (unitFlag opts) opts
+
+main :: IO ()
+main = execParser opts >>= compareDiversityMutationCounts
+  where
+    opts = info (helper <*> options)
+      ( fullDesc
+     <> progDesc "Return various information about the relationship between\
+                 \ the germline and the clones"
+     <> header "Germline and Clone Comparison, Gregory W. Schwartz")
