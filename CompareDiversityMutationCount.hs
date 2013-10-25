@@ -1,11 +1,12 @@
--- Compare Diversity with Mutation Counts
+-- CompareDiversityMutationCount module.
 -- By G.W. Schwartz
+--
+-- Called by Main to pull together the functions pertaining to Main's
+-- primary goal.
 
--- Takes a DW2 fasta file and generates the mutation counts of the clones
--- from each listed germline in the file per position in a dataframe type
--- format. For use with comparing the counts with the diversities generated
--- already.
+module CompareDiversityMutationCount where
 
+-- Built in
 import Data.List
 import Data.Char
 import qualified Data.Map as M
@@ -13,33 +14,19 @@ import Data.Ord
 import Control.Applicative
 import System.IO
 import System.Environment
-import Options.Applicative
 
+-- Cabal
 import qualified Data.List.Split as Split
 
--- Command line arguments
-data Options = Options { inputOrder                :: Double
-                       , inputFasta                :: String
-                       , inputDiversity            :: String
-                       , unitFlag                  :: GeneticUnit
-                       , outputMutCounts           :: String
-                       , outputStabCounts          :: String
-                       , outputMutDiversityCounts  :: String
-                       , outputStabDiversityCounts :: String
-                       , outputMutAAUse            :: String
-                       , outputStabAAUse           :: String
-                       , outputRarefaction         :: String
-                       , outputChangedAAMap        :: String
-                       }
+-- Local
+import Diversity
+import Translation
 
 -- Algebraic
 data GeneticUnit = AminoAcid | Codon
 
 -- Basic
-type AminoAcid         = Char
-type Codon             = String
 type ID                = Int
-type Sequence a        = [a]
 type Clone a           = Sequence a
 type Germline a        = Sequence a
 type Position          = Int
@@ -54,165 +41,6 @@ type CloneMutMap a = M.Map (ID, Germline a) (MutationMap a)
 type DiversityMap  = M.Map Position Diversity
 type ChangedAAMap  = M.Map Diversity [[(AminoAcid, AminoAcid, Size)]]
 
--- Command line options
-options :: Parser Options
-options = Options
-      <$> option
-          ( long "inputOrder"
-         <> short 'o'
-         <> metavar "ORDER"
-         <> value 1
-         <> help "The order of true diversity" )
-      <*> strOption
-          ( long "inputFasta"
-         <> short 'i'
-         <> metavar "FILE"
-         <> value ""
-         <> help "The fasta file containing the germlines and clones" )
-      <*> strOption
-          ( long "inputDiversity"
-         <> short 'd'
-         <> metavar "FILE"
-         <> value ""
-         <> help "The csv file containing the diversities at each position\
-                 \ (must be generated into a specific format" )
-      <*> flag AminoAcid Codon
-          ( long "nucleotides"
-         <> short 'u'
-         <> help "Whether these sequences are of nucleotides (Codon) or\
-                 \ amino acids (AminoAcid)" )
-      <*> strOption
-          ( long "outputMutCounts"
-         <> short 'm'
-         <> metavar "FILE"
-         <> value ""
-         <> help "The output file for the changed amino acid counts" )
-      <*> strOption
-          ( long "outputStabCounts"
-         <> short 's'
-         <> metavar "File"
-         <> value ""
-         <> help "The output file for the maintained amino acid counts" )
-      <*> strOption
-          ( long "outputMutDiversityCounts"
-         <> short 'M'
-         <> metavar "FILE"
-         <> value ""
-         <> help "The output file for the hanged amino acid diversities" )
-      <*> strOption
-          ( long "outputStabDiversityCounts"
-         <> short 'S'
-         <> metavar "FILE"
-         <> value ""
-         <> help "The output file for the maintained amino acid diversities")
-      <*> strOption
-          ( long "outputMutAAUse"
-         <> short 'j'
-         <> metavar "FILE"
-         <> value ""
-         <> help "The output file for the specific changed amino acids used" )
-      <*> strOption
-          ( long "outputStabAAUse"
-         <> short 'k'
-         <> metavar "FILE"
-         <> value ""
-         <> help "The output file for the specific maintained amino acids used" )
-      <*> strOption
-          ( long "outputRarefaction"
-         <> short 'r'
-         <> metavar "FILE"
-         <> value ""
-         <> help "The output file for the rarefaction curves" )
-      <*> strOption
-          ( long "outputChangedAAMap"
-         <> short 'c'
-         <> metavar "FILE"
-         <> value ""
-         <> help "The output file for the map of changed amino acids" )
-
--- Converts a codon to an amino acid
--- Remember, if there is an "N" in that DNA sequence, then it is invalid
-codon2aa :: Codon -> AminoAcid
-codon2aa x
-    | codon `elem` ["GCT", "GCC", "GCA", "GCG"]               = 'A'
-    | codon `elem` ["CGT", "CGC", "CGA", "CGG", "AGA", "AGG"] = 'R'
-    | codon `elem` ["AAT", "AAC"]                             = 'N'
-    | codon `elem` ["GAT", "GAC"]                             = 'D'
-    | codon `elem` ["TGT", "TGC"]                             = 'C'
-    | codon `elem` ["CAA", "CAG"]                             = 'Q'
-    | codon `elem` ["GAA", "GAG"]                             = 'E'
-    | codon `elem` ["GGT", "GGC", "GGA", "GGG"]               = 'G'
-    | codon `elem` ["CAT", "CAC"]                             = 'H'
-    | codon `elem` ["ATT", "ATC", "ATA"]                      = 'I'
-    | codon `elem` ["ATG"]                                    = 'M'
-    | codon `elem` ["TTA", "TTG", "CTT", "CTC", "CTA", "CTG"] = 'L'
-    | codon `elem` ["AAA", "AAG"]                             = 'K'
-    | codon `elem` ["TTT", "TTC"]                             = 'F'
-    | codon `elem` ["CCT", "CCC", "CCA", "CCG"]               = 'P'
-    | codon `elem` ["TCT", "TCC", "TCA", "TCG", "AGT", "AGC"] = 'S'
-    | codon `elem` ["ACT", "ACC", "ACA", "ACG"]               = 'T'
-    | codon `elem` ["TGG"]                                    = 'W'
-    | codon `elem` ["TAT", "TAC"]                             = 'Y'
-    | codon `elem` ["GTT", "GTC", "GTA", "GTG"]               = 'V'
-    | codon `elem` ["TAA", "TGA", "TAG"]                      = '*'
-    | codon `elem` ["---", "..."]                             = '-'
-    | codon == "~~~"                                          = '~'
-    | 'N' `elem` codon                                        = '~'
-    | '-' `elem` codon                                        = '~'
-    | otherwise                                               = error errorMsg
-  where
-    codon    = map toUpper x
-    errorMsg = "Unidentified codon: " ++ codon
-
--- Translates a string of nucleotides
-translate :: String -> Sequence AminoAcid
-translate = map codon2aa . filter ((== 3) . length) . Split.chunksOf 3
-
--- Takes two strings, returns Hamming distance
-hamming :: String -> String -> Int
-hamming xs ys = length $ filter not $ zipWith (==) xs ys
-
--- Returns the diversity of a list of things
-diversity :: (Ord b) => Double -> [b] -> Double
-diversity order sample
-    | length sample == 0 = 0
-    | order == 1         = exp . h $ speciesList
-    | otherwise          = (sum . map ((** order) . p_i) $ speciesList) ** pow
-  where
-    pow          = 1 / (1 - order)
-    h            = negate . sum . map (\x -> (p_i x) * (log (p_i x)))
-    p_i x        = ((fromIntegral . length $ x) :: Double) /
-                   ((fromIntegral . length $ sample) :: Double)
-    speciesList  = group . sort $ sample
-
--- Calculates the binary coefficient
-choose :: (Integral a) => a -> a -> a
-choose n 0 = 1
-choose 0 k = 0
-choose n k = choose (n - 1) (k - 1) * n `div` k
-
--- Returns the rarefaction curve for each position in a list
-rarefactionCurve :: (Eq a, Ord a) => [a] -> [Double]
-rarefactionCurve xs = map rarefact [1..n_total]
-  where
-    rarefact n
-        | n == 0       = 0
-        | n == 1       = 1
-        | n == n_total = k
-        | otherwise    = k - ((1 / (fromIntegral (choose n_total n))) * inner n)
-    inner n = fromIntegral                              .
-              sum                                       .
-              map (\g -> choose (n_total - length g) n) $
-              grouped
-    n_total = length xs
-    k       = genericLength grouped
-    grouped = group . sort $ xs
-
--- Calculates the percent of the curve that is above 95% of height of the curve
-rarefactionViable :: [Double] -> Double
-rarefactionViable xs = (genericLength valid / genericLength xs) * 100
-  where
-    valid = dropWhile (< (0.95 * last xs)) xs
 
 -- Takes a DW2 fasta file string and returns a CloneMap in order to
 -- generate the basic building block for the mutation counting.
@@ -539,54 +367,3 @@ printChangedAAMap changedAAMap = header ++ body
     fst' (x, _, _) = x
     snd' (_, x, _) = x
     thd' (_, _, x) = x
-
-geneticUnitBranch :: GeneticUnit -> Options -> IO ()
-geneticUnitBranch AminoAcid opts = do
-    contents <- readFile . inputFasta $ opts
-    let order = inputOrder opts
-
-    let unfilteredCloneMap  = generateCloneMap contents
-    let cloneMap            = filterCloneMap unfilteredCloneMap
-    let cloneMutMap         = generateCloneMutMap cloneMap
-    let combinedCloneMutMap = M.unionsWith (++) .
-                              map snd           .
-                              M.toAscList       $
-                              cloneMutMap
-
-    writeFile (outputMutCounts opts) $ printMutStabCounts True combinedCloneMutMap
-    writeFile (outputStabCounts opts) $ printMutStabCounts False combinedCloneMutMap
-    writeFile (outputMutDiversityCounts opts) $ printMutStabTypeCounts True order combinedCloneMutMap
-    writeFile (outputStabDiversityCounts opts) $ printMutStabTypeCounts False order combinedCloneMutMap
-    writeFile (outputMutAAUse opts) $ printMutStabAAUse True combinedCloneMutMap
-    writeFile (outputStabAAUse opts) $ printMutStabAAUse False combinedCloneMutMap
-    writeFile (outputRarefaction opts) $ printRarefaction combinedCloneMutMap
-geneticUnitBranch Codon opts = do
-    contents <- readFile . inputFasta $ opts
-    diversityContents <- readFile . inputDiversity $ opts
-
-    let viablePos     = [25..30] ++ [35..59] ++ [63..72] ++ [74..106]
-    let divMap        = generateDiversityMap diversityContents
-    let unfilteredCloneMap  = generateCodonCloneMap contents
-    let cloneMap            = filterCodonCloneMap unfilteredCloneMap
-    let cloneMutMap         = generateCloneMutMap cloneMap
-    let combinedCloneMutMap = M.unionsWith (++) .
-                              map snd           .
-                              M.toAscList       $
-                              cloneMutMap
-
-    let changedAAMap = generateChangedAAMap viablePos divMap combinedCloneMutMap
-
-    writeFile (outputChangedAAMap opts) $ printChangedAAMap changedAAMap
-
-compareDiversityMutationCounts :: Options -> IO ()
-compareDiversityMutationCounts opts = do
-    geneticUnitBranch (unitFlag opts) opts
-
-main :: IO ()
-main = execParser opts >>= compareDiversityMutationCounts
-  where
-    opts = info (helper <*> options)
-      ( fullDesc
-     <> progDesc "Return various information about the relationship between\
-                 \ the germline and the clones"
-     <> header "Germline and Clone Comparison, Gregory W. Schwartz")
