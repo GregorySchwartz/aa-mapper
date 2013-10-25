@@ -14,6 +14,7 @@ import Options.Applicative
 
 -- Local
 import CompareDiversityMutationCount
+import FastaDiversity
 
 -- Command line arguments
 data Options = Options { inputOrder                :: Double

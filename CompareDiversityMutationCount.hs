@@ -169,23 +169,6 @@ generateCloneMutMap = M.mapWithKey gatherMutations
   where
     gatherMutations k xs = joinMutations . map (countMutations (snd k)) $ xs
 
--- Generate  DiversityMap which contains the germline diversity at each
--- position.
-generateDiversityMap :: String -> DiversityMap
-generateDiversityMap = M.fromList . map diverseTuple . csvFilter . csvParse
-  where
-    diverseTuple x = (read (splitComma x !! 2) :: Int
-                     , round' (read (splitComma x !! 3) :: Double))
-    csvFilter      = filter (\x -> isHeavy x && isOrder x && isWindow x)
-    isHeavy        = (==) "IGH" . flip (!!) 0 . splitComma
-    isOrder        = (==) "1" . flip (!!) 1 . splitComma
-    isWindow       = (==) "1" . flip (!!) 5 . splitComma
-    splitComma     = Split.splitOn ","
-    csvParse       = drop 1 . lines
-    round' x
-        | round x == 0 = 1
-        | otherwise    = round x
-
 -- Generate a ChangedAAMap which contains all of the aminoacids a certain
 -- amino acid at a certain diversity goes to.
 generateChangedAAMap :: [Int]             ->
