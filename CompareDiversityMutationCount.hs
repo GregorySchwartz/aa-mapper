@@ -19,28 +19,9 @@ import System.Environment
 import qualified Data.List.Split as Split
 
 -- Local
+import Types
 import Diversity
 import Translation
-
--- Algebraic
-data GeneticUnit = AminoAcid | Codon
-
--- Basic
-type ID                = Int
-type Clone a           = Sequence a
-type Germline a        = Sequence a
-type Position          = Int
-type Diversity         = Int
-type Size              = Int
-
--- Advanced
-type Mutation a    = (a, a)
-type CloneMap a    = M.Map (ID, Germline a) [Clone a]
-type MutationMap a = M.Map Position [Mutation a]
-type CloneMutMap a = M.Map (ID, Germline a) (MutationMap a)
-type DiversityMap  = M.Map Position Diversity
-type ChangedAAMap  = M.Map Diversity [[(AminoAcid, AminoAcid, Size)]]
-
 
 -- Takes a DW2 fasta file string and returns a CloneMap in order to
 -- generate the basic building block for the mutation counting.

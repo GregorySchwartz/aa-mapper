@@ -12,10 +12,8 @@ import Data.Char
 -- Cabal
 import qualified Data.List.Split as Split
 
--- Basic
-type AminoAcid         = Char
-type Codon             = String
-type Sequence a        = [a]
+-- Local
+import Types
 
 -- Converts a codon to an amino acid
 -- Remember, if there is an "N" in that DNA sequence, then it is invalid

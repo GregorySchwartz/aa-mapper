@@ -15,22 +15,8 @@ import Data.List
 import qualified Data.List.Split as Split
 
 -- Local
+import Types
 import Diversity
-
--- Algebraic
-data FastaSequence = FastaSequence { fastaInfo :: String
-                                   , fastaSeq  :: String
-                                   } deriving (Eq, Ord, Show)
-
--- Basic
-type Position   = Int
-type AminoAcid  = Char
-type Sequence a = [a]
-type Diversity  = Int
-
--- Adanced
-type PositionMap = M.Map Position [AminoAcid]
-type DiversityMap  = M.Map Position Diversity
 
 fastaParser :: String -> [FastaSequence]
 fastaParser = map makeFastaSequence . Split.splitOn ">"
