@@ -111,14 +111,14 @@ options = Options
          <> help "The output file for the map of all changed amino acids" )
       <*> strOption
           ( long "outputImportantChangedAAMap"
-         <> short 'c'
+         <> short 'y'
          <> metavar "FILE"
          <> value ""
          <> help "The output file for the map of important changed\
                  \ amino acids" )
       <*> strOption
           ( long "outputUnimportantChangedAAMap"
-         <> short 'c'
+         <> short 'z'
          <> metavar "FILE"
          <> value ""
          <> help "The output file for the map of unimportant changed\
