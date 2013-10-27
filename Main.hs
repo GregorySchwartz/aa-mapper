@@ -13,22 +13,25 @@ import qualified Data.Map as M
 import Options.Applicative
 
 -- Local
+import Types
 import CompareDiversityMutationCount
 import FastaDiversity
 
 -- Command line arguments
-data Options = Options { inputOrder                :: Double
-                       , inputFasta                :: String
-                       , inputDiversity            :: String
-                       , unitFlag                  :: GeneticUnit
-                       , outputMutCounts           :: String
-                       , outputStabCounts          :: String
-                       , outputMutDiversityCounts  :: String
-                       , outputStabDiversityCounts :: String
-                       , outputMutAAUse            :: String
-                       , outputStabAAUse           :: String
-                       , outputRarefaction         :: String
-                       , outputChangedAAMap        :: String
+data Options = Options { inputOrder                    :: Double
+                       , inputFasta                    :: String
+                       , inputDiversity                :: String
+                       , unitFlag                      :: GeneticUnit
+                       , outputMutCounts               :: String
+                       , outputStabCounts              :: String
+                       , outputMutDiversityCounts      :: String
+                       , outputStabDiversityCounts     :: String
+                       , outputMutAAUse                :: String
+                       , outputStabAAUse               :: String
+                       , outputRarefaction             :: String
+                       , outputAllChangedAAMap         :: String
+                       , outputImportantChangedAAMap   :: String
+                       , outputUnimportantChangedAAMap :: String
                        }
 
 -- Command line options
@@ -101,11 +104,25 @@ options = Options
          <> value ""
          <> help "The output file for the rarefaction curves" )
       <*> strOption
-          ( long "outputChangedAAMap"
+          ( long "outputAllChangedAAMap"
          <> short 'c'
          <> metavar "FILE"
          <> value ""
-         <> help "The output file for the map of changed amino acids" )
+         <> help "The output file for the map of all changed amino acids" )
+      <*> strOption
+          ( long "outputImportantChangedAAMap"
+         <> short 'c'
+         <> metavar "FILE"
+         <> value ""
+         <> help "The output file for the map of important changed\
+                 \ amino acids" )
+      <*> strOption
+          ( long "outputUnimportantChangedAAMap"
+         <> short 'c'
+         <> metavar "FILE"
+         <> value ""
+         <> help "The output file for the map of unimportant changed\
+                 \ amino acids" )
 
 geneticUnitBranch :: GeneticUnit -> Options -> IO ()
 geneticUnitBranch AminoAcid opts = do
@@ -141,9 +158,24 @@ geneticUnitBranch Codon opts = do
                               M.toAscList       $
                               cloneMutMap
 
-    let changedAAMap = generateChangedAAMap viablePos divMap combinedCloneMutMap
+    let allOrtant d p l   = l
+    let important         = mostImportantCodons
+    let unimportant d p l = filter (\(x, y) ->
+                                    (notElem x . map fst . important d p $ l) &&
+                                    (notElem y . map snd . important d p $ l)) l
+    let changedAAMap = generateChangedAAMap
+                       viablePos allOrtant divMap combinedCloneMutMap
+    let importantChangedAAMap = generateChangedAAMap
+                                viablePos important divMap combinedCloneMutMap
+    let unimportantChangedAAMap = generateChangedAAMap
+                                  viablePos unimportant divMap combinedCloneMutMap
 
-    writeFile (outputChangedAAMap opts) $ printChangedAAMap changedAAMap
+    writeFile (outputAllChangedAAMap opts) $
+              printChangedAAMap changedAAMap
+    writeFile (outputImportantChangedAAMap opts) $
+              printChangedAAMap importantChangedAAMap
+    writeFile (outputUnimportantChangedAAMap opts) $
+              printChangedAAMap unimportantChangedAAMap
 
 compareDiversityMutationCounts :: Options -> IO ()
 compareDiversityMutationCounts opts = do

@@ -29,6 +29,6 @@ type Mutation a    = (a, a)
 type CloneMap a    = M.Map (ID, Germline a) [Clone a]
 type MutationMap a = M.Map Position [Mutation a]
 type CloneMutMap a = M.Map (ID, Germline a) (MutationMap a)
-type PositionMap = M.Map Position [AminoAcid]
+type PositionMap   = M.Map Position [AminoAcid]
 type DiversityMap  = M.Map Position Diversity
 type ChangedAAMap  = M.Map Diversity [[(AminoAcid, AminoAcid, Size)]] 

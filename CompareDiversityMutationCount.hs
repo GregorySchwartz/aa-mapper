@@ -22,6 +22,7 @@ import qualified Data.List.Split as Split
 import Types
 import Diversity
 import Translation
+import FastaDiversity
 
 -- Takes a DW2 fasta file string and returns a CloneMap in order to
 -- generate the basic building block for the mutation counting.
@@ -152,15 +153,19 @@ generateCloneMutMap = M.mapWithKey gatherMutations
 
 -- Generate a ChangedAAMap which contains all of the aminoacids a certain
 -- amino acid at a certain diversity goes to.
-generateChangedAAMap :: [Int]             ->
-                        DiversityMap      ->
-                        MutationMap Codon ->
+generateChangedAAMap :: [Int]                              ->
+                        ( DiversityMap
+                       -> Position
+                       -> [Mutation Codon]
+                       -> [Mutation Codon] )               ->
+                        DiversityMap                       ->
+                        MutationMap Codon                  ->
                         ChangedAAMap
-generateChangedAAMap viablePos germDivMap = aaDivMap              .
-                                            M.filter (not . null) .
-                                            diversityMap          .
-                                            filterNonviablePos    .
-                                            realMutMap
+generateChangedAAMap viablePos important germDivMap = aaDivMap              .
+                                                      M.filter (not . null) .
+                                                      diversityMap          .
+                                                      filterNonviablePos    .
+                                                      realMutMap
   where
     aaDivMap                = M.map (\xs -> group . sort . map numMut $ xs)
     realMutMap              = M.map (filterCodonMutStab isCodonMutation)
@@ -169,16 +174,10 @@ generateChangedAAMap viablePos germDivMap = aaDivMap              .
     diversityMap            = M.fromListWith (++) .
                               map keysToDiversity .
                               M.toAscList
-    keysToDiversity (x, xs) = (getDiversity x, xs)
+    keysToDiversity (x, xs) = (getDiversity x, important germDivMap x xs)
     getDiversity x          = extractMaybe . M.lookup x $ germDivMap
     extractMaybe (Just x)   = x
     extractMaybe Nothing    = error "Clone position not in germline positions"
-
--- Returns a list of stuff ordered by how many of a type of stuff there
--- are, like [1,1,2,2,3,3,3,3,4,4,4,4,4] -> [[4,4,4,4,4], [3,3,3,3], [2,2],
--- [1,1]]
-groupLengthSort :: (Ord a) => [a] -> [[a]]
-groupLengthSort = reverse . sortBy (comparing length) . group . sort
 
 -- Classify a list of amino acids as a certain kind of hydrophobicity
 classifyAA :: Char -> String
@@ -215,17 +214,6 @@ classifyPosition aaList
     sortedList       = groupLengthSort    .
                        filter (/= "Stop") .
                        map classifyAA $ aaList
-
--- Return the Diversity Order 1 most important amino acids
-getImportantAA :: (Ord a) => Sequence a -> Sequence a
-getImportantAA mutList = concat . takeWhile biggerLength $ sortedMutList
-  where
-    biggerLength x = length x >= weight
-    weight         = if shannonDiv == 0
-                    then length . head $ sortedMutList
-                    else length $ sortedMutList !! (shannonDiv - 1)
-    shannonDiv     = round . diversity 1 $ mutList
-    sortedMutList  = groupLengthSort mutList
 
 -- Return the results of the mutation or stable counts as a string
 printMutStabCounts :: Bool -> MutationMap AminoAcid -> String
