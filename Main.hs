@@ -56,7 +56,7 @@ options = Options
          <> metavar "FILE"
          <> value ""
          <> help "The csv file containing the diversities at each position\
-                 \ (must be generated into a specific format" )
+                 \ (must be generated into a specific format)" )
       <*> option
           ( long "inputAAMapType"
          <> short 't'
