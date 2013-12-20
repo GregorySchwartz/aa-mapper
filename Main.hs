@@ -21,6 +21,7 @@ import FastaDiversity
 data Options = Options { inputOrder                    :: Double
                        , inputFasta                    :: String
                        , inputDiversity                :: String
+                       , inputAAMapType                :: DivPos
                        , unitFlag                      :: GeneticUnit
                        , outputMutCounts               :: String
                        , outputStabCounts              :: String
@@ -56,6 +57,13 @@ options = Options
          <> value ""
          <> help "The csv file containing the diversities at each position\
                  \ (must be generated into a specific format" )
+      <*> option
+          ( long "inputAAMapType"
+         <> short 't'
+         <> metavar "DIVERSITY | POSITION"
+         <> value Diversity
+         <> help "Whether to split the amino acid map by position\
+                 \ or diversity" )
       <*> flag AminoAcid Codon
           ( long "nucleotides"
          <> short 'u'
@@ -127,9 +135,10 @@ options = Options
 geneticUnitBranch :: GeneticUnit -> Options -> IO ()
 geneticUnitBranch AminoAcid opts = do
     contents <- readFile . inputFasta $ opts
+    let contentsFormatted = joinSeq contents
     let order = inputOrder opts
 
-    let unfilteredCloneMap  = generateCloneMap contents
+    let unfilteredCloneMap  = generateCloneMap contentsFormatted
     let cloneMap            = filterCloneMap unfilteredCloneMap
     let cloneMutMap         = generateCloneMutMap cloneMap
     let combinedCloneMutMap = M.unionsWith (++) .
@@ -149,6 +158,7 @@ geneticUnitBranch Codon opts = do
     diversityContents <- readFile . inputDiversity $ opts
 
     let viablePos     = [25..30] ++ [35..59] ++ [63..72] ++ [74..106]
+    let divPos        = inputAAMapType opts
     let divMap        = generateDiversityMap diversityContents
     let unfilteredCloneMap  = generateCodonCloneMap contents
     let cloneMap            = filterCodonCloneMap unfilteredCloneMap
@@ -158,24 +168,33 @@ geneticUnitBranch Codon opts = do
                               M.toAscList       $
                               cloneMutMap
 
-    let allOrtant d p l   = l
+    let allImportant d p l   = l
     let important         = mostImportantCodons
     let unimportant d p l = filter (\(x, y) ->
-                                    (notElem x . map fst . important d p $ l) &&
+                                    (elem x . map fst . important d p $ l) &&
                                     (notElem y . map snd . important d p $ l)) l
-    let changedAAMap = generateChangedAAMap
-                       viablePos allOrtant divMap combinedCloneMutMap
-    let importantChangedAAMap = generateChangedAAMap
-                                viablePos important divMap combinedCloneMutMap
-    let unimportantChangedAAMap = generateChangedAAMap
-                                  viablePos unimportant divMap combinedCloneMutMap
+    let changedAAMap = generateChangedAAMap divPos
+                                            viablePos
+                                            allImportant
+                                            divMap
+                                            combinedCloneMutMap
+    let importantChangedAAMap = generateChangedAAMap divPos
+                                                     viablePos
+                                                     important
+                                                     divMap
+                                                     combinedCloneMutMap
+    let unimportantChangedAAMap = generateChangedAAMap divPos
+                                                       viablePos
+                                                       unimportant
+                                                       divMap
+                                                       combinedCloneMutMap
 
     writeFile (outputAllChangedAAMap opts) $
-              printChangedAAMap changedAAMap
+              printChangedAAMap divPos changedAAMap
     writeFile (outputImportantChangedAAMap opts) $
-              printChangedAAMap importantChangedAAMap
+              printChangedAAMap divPos importantChangedAAMap
     writeFile (outputUnimportantChangedAAMap opts) $
-              printChangedAAMap unimportantChangedAAMap
+              printChangedAAMap divPos unimportantChangedAAMap
 
 compareDiversityMutationCounts :: Options -> IO ()
 compareDiversityMutationCounts opts = do
@@ -188,4 +207,4 @@ main = execParser opts >>= compareDiversityMutationCounts
       ( fullDesc
      <> progDesc "Return various information about the relationship between\
                  \ the germline and the clones"
-     <> header "Germline and Clone Comparison, Gregory W. Schwartz")
+     <> header "Germline and Clone Comparison, Gregory W. Schwartz" )

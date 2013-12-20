@@ -26,8 +26,8 @@ diversity order sample
 
 -- Calculates the binary coefficient
 choose :: (Integral a) => a -> a -> a
-choose n 0 = 1
-choose 0 k = 0
+choose _ 0 = 1
+choose 0 _ = 0
 choose n k = choose (n - 1) (k - 1) * n `div` k
 
 -- Returns the rarefaction curve for each position in a list

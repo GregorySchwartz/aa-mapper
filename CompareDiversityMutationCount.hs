@@ -24,6 +24,35 @@ import Diversity
 import Translation
 import FastaDiversity
 
+-- Takes a fasta file string and removes newlines in the sequences to make
+-- this compatible with the fasta parser. The lineCompress function should
+-- get rid of any extra newlines messing with the code.
+joinSeq :: String -> String
+joinSeq = lineCompress
+        . tail
+        . concat
+        . map newEntry
+        . filter (/= "")
+        . Split.splitOn ">>"
+  where
+    newEntry x             = if elem '>' x then cloneEntry x else germEntry x
+    germEntry x            = newGerm x
+    cloneEntry x           = newGerm (germline x)
+                          ++ concat (map newClone . filter (/= "") . clone $ x)
+    newGerm x
+        | seq x /= ""      = "\n>>" ++ (header x) ++ "\n" ++ (seq x)
+        | otherwise        = ""
+    newClone x
+        | seq x /= ""      = "\n>" ++ (header x) ++ "\n" ++ (seq x)
+        | otherwise        = ""
+    germline               = head . Split.splitOn ">"
+    clone                  = tail . Split.splitOn ">"
+    header                 = head . lines
+    seq                    = concat . tail . lines
+    lineCompress []        = []
+    lineCompress ('\n':xs) = '\n' : (lineCompress $ dropWhile (== '\n') xs)
+    lineCompress (x:xs)    = x : (lineCompress xs)
+
 -- Takes a DW2 fasta file string and returns a CloneMap in order to
 -- generate the basic building block for the mutation counting.
 -- Note: Several repeating germlines, so they need a unique identifier (an
@@ -37,9 +66,10 @@ generateCloneMap = M.fromList . getSequences
     filterHeaders                  = filter (\x -> head x /= '>')
     assocList                      = map assocMap . germlineSplit
     assocMap (x, y)                = ((x, germline y), clones y)
-    germlineSplit                  = zip [0..]      .
-                                     filter (/= "") .
-                                     Split.splitOn ">>"
+    germlineSplit                  = zip [0..]
+                                   . filter (\x -> elem '>' x)  -- Only clones
+                                   . filter (/= "")
+                                   . Split.splitOn ">>"
     germline                       = take 2 . lines
     clones                         = drop 2 . lines
 
@@ -152,32 +182,47 @@ generateCloneMutMap = M.mapWithKey gatherMutations
     gatherMutations k xs = joinMutations . map (countMutations (snd k)) $ xs
 
 -- Generate a ChangedAAMap which contains all of the aminoacids a certain
--- amino acid at a certain diversity goes to.
-generateChangedAAMap :: [Int]                              ->
-                        ( DiversityMap
+-- amino acid at a certain diversity goes to. Also supports what a position
+-- can go to as well using a flag in the input.
+generateChangedAAMap :: DivPos
+                     -> [Int]
+                     -> ( DiversityMap
                        -> Position
                        -> [Mutation Codon]
-                       -> [Mutation Codon] )               ->
-                        DiversityMap                       ->
-                        MutationMap Codon                  ->
-                        ChangedAAMap
-generateChangedAAMap viablePos important germDivMap = aaDivMap              .
-                                                      M.filter (not . null) .
-                                                      diversityMap          .
-                                                      filterNonviablePos    .
-                                                      realMutMap
+                       -> [Mutation Codon] )
+                     -> DiversityMap
+                     -> MutationMap Codon
+                     -> ChangedAAMap
+generateChangedAAMap isPos
+                     viablePos
+                     important
+                     germDivMap = aaDivPosMap            .
+                                  M.filter (not . null)  .
+                                  M.fromListWith (++)    .
+                                  makeDiversityMap isPos .
+                                  filterNonviablePos     .
+                                  realMutMap
   where
-    aaDivMap                = M.map (\xs -> group . sort . map numMut $ xs)
-    realMutMap              = M.map (filterCodonMutStab isCodonMutation)
-    numMut (x, y)           = (codon2aa x, codon2aa y, hamming x y)
-    filterNonviablePos      = M.filterWithKey (\k _ -> elem k viablePos)
-    diversityMap            = M.fromListWith (++) .
-                              map keysToDiversity .
-                              M.toAscList
-    keysToDiversity (x, xs) = (getDiversity x, important germDivMap x xs)
-    getDiversity x          = extractMaybe . M.lookup x $ germDivMap
-    extractMaybe (Just x)   = x
-    extractMaybe Nothing    = error "Clone position not in germline positions"
+    aaDivPosMap                = M.map (\xs -> map numMut $ xs)
+    realMutMap                 = M.map (filterCodonMutStab isCodonMutation)
+    numMut (x, y)              = ChangedAA { germlineAA    = codon2aa x
+                                           , cloneAA       = codon2aa y
+                                           , germlineCodon = x
+                                           , cloneCodon    = y
+                                           , numMutations  = hamming x y
+                                           , sortFormatAA  = formAA x y
+                                           , sortFormatCodon = formCodon x y
+                                            }
+    formAA x y                 = (codon2aa x, codon2aa y, hamming x y)
+    formCodon x y              = (x, y, hamming x y)
+    filterNonviablePos         = M.filterWithKey (\k _ -> elem k viablePos)
+    makeDiversityMap Diversity = map keysToDiversity .  M.toAscList
+    makeDiversityMap Position  = map keysToPos . M.toAscList
+    keysToDiversity (x, xs)    = (getDiversity x, important germDivMap x xs)
+    keysToPos (x, xs)          = (x, important germDivMap x xs)
+    getDiversity x             = extractMaybe . M.lookup x $ germDivMap
+    extractMaybe (Just x)      = x
+    extractMaybe Nothing       = error "Clone position not found"
 
 -- Classify a list of amino acids as a certain kind of hydrophobicity
 classifyAA :: Char -> String
@@ -224,12 +269,12 @@ printMutStabCounts mutBool mutationMap = header ++ body
                        map mapLine                      .
                        M.toAscList                      $
                        mutationMap
-    mapLine (x, xs) = show x                                    ++
-                      ","                                       ++
-                      (show . length . mutList $ xs)            ++
-                      ","                                       ++
-                      (show . length . mutList $ xs)            ++
-                      ","                                       ++
+    mapLine (x, xs) = show x                                            ++
+                      ","                                               ++
+                      (show . length . mutList $ xs)                    ++
+                      ","                                               ++
+                      (show . length . filterMutStab (\_ -> True) $ xs) ++
+                      ","                                               ++
                       (classifyPosition . nub . getImportantAA . mutList $ xs)
     mutList          = map toUpper . mutUniquer mutBool
     mutUniquer True  = map snd . filterMutStab isMutation
@@ -246,12 +291,12 @@ printMutStabTypeCounts mutBool order mutationMap = header ++ body
                        map mapLine                      .
                        M.toAscList                      $
                        mutationMap
-    mapLine (x, xs) = show x                                  ++
-                      ","                                     ++
-                      (show . diversity order . mutList $ xs) ++
-                      ","                                     ++
-                      (show . length . mutList $ xs)          ++
-                      ","                                     ++
+    mapLine (x, xs) = show x                                            ++
+                      ","                                               ++
+                      (show . diversity order . mutList $ xs)           ++
+                      ","                                               ++
+                      (show . length . filterMutStab (\_ -> True) $ xs) ++
+                      ","                                               ++
                       (classifyPosition . nub . getImportantAA . mutList $ xs)
     mutList          = map toUpper . mutUniquer mutBool
     mutUniquer True  = map snd . filterMutStab isMutation
@@ -299,23 +344,33 @@ printRarefaction mutationMap = header ++ body
     mutList         = filterMutStab taut
     taut _          = True
 
-printChangedAAMap :: ChangedAAMap -> String
-printChangedAAMap changedAAMap = header ++ body
+-- Return the ChangedAAMap as a string for saving to a file, either with
+-- positions or diversities specified by the input
+printChangedAAMap :: DivPos -> ChangedAAMap -> String
+printChangedAAMap divPos changedAAMap = header divPos ++ body
   where
-    header                = "diversity,germline,clone,mutations,size\n"
-    body                  = intercalate "\n" .
-                            map mapDiv       .
-                            M.toAscList      $
+    header Diversity      = "diversity,germline,clone,germline_codon,\
+                            \clone_codon,mutations,size\n"
+    header Position       = "position,germline,clone,germline_codon,\
+                            \clone_codon,mutations,size\n"
+    body                  = intercalate "\n"  .
+                            map mapDiv        .
+                            M.toAscList       .
+                            M.map countGroups $
                             changedAAMap
     mapDiv (div, xs)      = intercalate "\n" . map (\ys -> mapLine div ys) $ xs
     mapLine div xs        = show div ++ "," ++ lineFormat xs
-    lineFormat all@(x:xs) = [fst' x]          ++
-                            ","               ++
-                            [snd' x]          ++
-                            ","               ++
-                            (show . thd' $ x) ++
-                            ","               ++
+    lineFormat all@(x:xs) = [germlineAA $ x]          ++
+                            ","                       ++
+                            [cloneAA $ x]             ++
+                            ","                       ++
+                            germlineCodon x           ++
+                            ","                       ++
+                            cloneCodon x              ++
+                            ","                       ++
+                            (show . numMutations $ x) ++
+                            ","                       ++
                             (show . length $ all)
-    fst' (x, _, _) = x
-    snd' (_, x, _) = x
-    thd' (_, _, x) = x
+    countGroups           = groupBy groupFormat .
+                            sortBy (comparing sortFormatCodon)
+    groupFormat x y       = sortFormatCodon x == sortFormatCodon y

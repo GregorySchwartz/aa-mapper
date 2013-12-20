@@ -1,8 +1,9 @@
--- Translation module
+-- germline_clone_mutation_count_source
+-- Translation Module
 -- By G.W. Schwartz
 
--- Collection of functions that concern various nucleotide to amino acid
--- properties. Also Hamming.
+-- Collects all functions pertaining to the translation of nucleotides to
+-- amino acids
 
 module Translation where
 
@@ -17,7 +18,7 @@ import Types
 
 -- Converts a codon to an amino acid
 -- Remember, if there is an "N" in that DNA sequence, then it is invalid
-codon2aa :: Codon -> AminoAcid
+codon2aa :: Codon -> Char
 codon2aa x
     | codon `elem` ["GCT", "GCC", "GCA", "GCG"]               = 'A'
     | codon `elem` ["CGT", "CGC", "CGA", "CGG", "AGA", "AGG"] = 'R'
@@ -41,14 +42,17 @@ codon2aa x
     | codon `elem` ["GTT", "GTC", "GTA", "GTG"]               = 'V'
     | codon `elem` ["TAA", "TGA", "TAG"]                      = '*'
     | codon `elem` ["---", "..."]                             = '-'
-    | codon == "~~~"                                          = '~'
-    | 'N' `elem` codon                                        = '~'
-    | '-' `elem` codon                                        = '~'
+    | codon == "~~~"                                          = '-'
+    | 'N' `elem` codon                                        = '-'
+    | '-' `elem` codon                                        = '-'
+    | '.' `elem` codon                                        = '-'
     | otherwise                                               = error errorMsg
   where
     codon    = map toUpper x
     errorMsg = "Unidentified codon: " ++ codon
 
 -- Translates a string of nucleotides
-translate :: String -> Sequence AminoAcid
+-- Different from normal as this accepts a codon list. This is a horrible
+-- program that I should fully change to the other one soon.
+translate :: String -> String
 translate = map codon2aa . filter ((== 3) . length) . Split.chunksOf 3
