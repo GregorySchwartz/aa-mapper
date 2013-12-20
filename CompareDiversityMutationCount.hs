@@ -150,11 +150,12 @@ filterCloneMap :: CloneMap AminoAcid -> CloneMap AminoAcid
 filterCloneMap = M.mapWithKey filterMutated
   where
     filterMutated k xs  = filter (not . isHighlyMutated (snd k)) xs
-    isHighlyMutated k x = 30 <= (length . realMutations k $ x)
-    realMutations k x   = filterMutStab isMutation .
-                          map snd                      .
-                          countMutations k             $
-                          x
+    isHighlyMutated k x = ((genericLength x / 3) :: Double)
+                       <= ((genericLength . realMutations k $ x) :: Double)
+    realMutations k x   = filterMutStab isMutation
+                        . map snd
+                        . countMutations k
+                        $ x
 
 -- Filters the cloneMap to remove clones with 30 mutations or greater, this
 -- is the nucleotide version. There is too much adhoc going on here,
@@ -163,7 +164,8 @@ filterCodonCloneMap :: CloneMap Codon -> CloneMap Codon
 filterCodonCloneMap = M.mapWithKey filterMutated
   where
     filterMutated k xs  = filter (not . isHighlyMutated (snd k)) xs
-    isHighlyMutated k x = 30 <= (length . realMutations k $ x)
+    isHighlyMutated k x = ((genericLength x :: Double) / 3)
+                       <= ((genericLength . realMutations k $ x) :: Double)
     realMutations k x   = filterCodonMutStab isCodonMutation .
                           map snd                      .
                           countMutations k             $
@@ -180,6 +182,22 @@ generateCloneMutMap :: (Eq a) => CloneMap a -> CloneMutMap a
 generateCloneMutMap = M.mapWithKey gatherMutations
   where
     gatherMutations k xs = joinMutations . map (countMutations (snd k)) $ xs
+
+-- Take out gaps from the MutationMap Codon
+filterCodonMutationMap :: MutationMap Codon -> MutationMap Codon
+filterCodonMutationMap = M.filter (not . null) . M.map (filter removeGaps)
+  where
+    removeGaps (x, y)
+        | elem '-' x || elem '-' y = False
+        | otherwise                = True
+
+-- Take out gaps from the MutationMap AminoAcid
+filterAminoAcidMutationMap :: MutationMap AminoAcid -> MutationMap AminoAcid
+filterAminoAcidMutationMap = M.filter (not . null) . M.map (filter removeGaps)
+  where
+    removeGaps (x, y)
+        | x == '-' || y == '-' = False
+        | otherwise            = True
 
 -- Generate a ChangedAAMap which contains all of the aminoacids a certain
 -- amino acid at a certain diversity goes to. Also supports what a position
@@ -233,7 +251,7 @@ classifyAA aa
     | aa == '*'           = "Stop"
     | otherwise           = error ("Amino acid not found: " ++ [aa])
 
--- CLassify a position based on the numbers of types of hydrophobicity
+-- Classify a position based on the numbers of types of hydrophobicity
 -- I realize that the indeterminate should be grouped under otherwise, but
 -- I just want to make obvious the rules here
 classifyPosition :: [Char] -> String

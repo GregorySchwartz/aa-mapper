@@ -64,30 +64,34 @@ groupLengthSort :: (Ord a) => [a] -> [[a]]
 groupLengthSort = reverse . sortBy (comparing length) . group . sort
 
 -- Return the Diversity Order 1 most important GeneticUnits
-getImportantAA :: (Ord a) => Sequence a -> Sequence a
+getImportantAA :: (Ord a) => [a] -> [a]
 getImportantAA mutList = concat . takeWhile biggerLength $ sortedMutList
   where
     biggerLength x = length x >= weight
     weight         = if shannonDiv == 0
                      then length . head $ sortedMutList
-                     else length $ sortedMutList !! (shannonDiv - 1)
+                     else length . last . take shannonDiv $ sortedMutList
     shannonDiv     = round . diversity 1 $ mutList
     sortedMutList  = groupLengthSort mutList
 
 -- Return the Diversity Order 1 most important amino acids from the
 -- existing germline list only
-getGermImportantAA :: (Ord a) => DiversityMap ->
-                                 Position     ->
-                                 Sequence a   ->
-                                 Sequence a
-getGermImportantAA germDivMap pos genUnitList = concat                 .
-                                                takeWhile biggerLength $
-                                                sortedGenUnitList
+getGermImportantAA :: (Ord a)
+                   => DiversityMap
+                   -> Position
+                   -> [a]
+                   -> [a]
+getGermImportantAA germDivMap pos genUnitList = concat
+                                              . takeWhile biggerLength
+                                              $ sortedGenUnitList
   where
     biggerLength x        = length x >= weight
     weight                = if shannonDiv == 0
                             then length . head $ sortedGenUnitList
-                            else length $ sortedGenUnitList !! (shannonDiv - 1)
+                            else length
+                               . last
+                               . take shannonDiv
+                               $ sortedGenUnitList
     shannonDiv            = getDiversity pos
     getDiversity x        = extractMaybe . M.lookup x $ germDivMap
     sortedGenUnitList     = groupLengthSort genUnitList
@@ -98,7 +102,7 @@ mostImportantCodons :: DiversityMap     ->
                        Position         ->
                        [Mutation Codon] ->
                        [Mutation Codon]
-mostImportantCodons germDivMap pos l = filter isImportant l
+mostImportantCodons germDivMap pos l  = filter isImportant l
   where
     isImportant (x, y) = importantGerm x && importantClone y
     importantGerm x    = codon2aa x `elem` importantGermlines

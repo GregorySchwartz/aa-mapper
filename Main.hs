@@ -141,10 +141,12 @@ geneticUnitBranch AminoAcid opts = do
     let unfilteredCloneMap  = generateCloneMap contentsFormatted
     let cloneMap            = filterCloneMap unfilteredCloneMap
     let cloneMutMap         = generateCloneMutMap cloneMap
-    let combinedCloneMutMap = M.unionsWith (++) .
-                              map snd           .
-                              M.toAscList       $
-                              cloneMutMap
+    let unfilteredCombinedCloneMutMap = M.unionsWith (++)
+                                      . map snd
+                                      . M.toAscList
+                                      $ cloneMutMap
+    let combinedCloneMutMap = filterAminoAcidMutationMap
+                              unfilteredCombinedCloneMutMap
 
     writeFile (outputMutCounts opts) $ printMutStabCounts True combinedCloneMutMap
     writeFile (outputStabCounts opts) $ printMutStabCounts False combinedCloneMutMap
@@ -163,10 +165,12 @@ geneticUnitBranch Codon opts = do
     let unfilteredCloneMap  = generateCodonCloneMap contents
     let cloneMap            = filterCodonCloneMap unfilteredCloneMap
     let cloneMutMap         = generateCloneMutMap cloneMap
-    let combinedCloneMutMap = M.unionsWith (++) .
-                              map snd           .
-                              M.toAscList       $
-                              cloneMutMap
+    let unfilteredCombinedCloneMutMap = M.unionsWith (++)
+                                      . map snd
+                                      . M.toAscList
+                                      $ cloneMutMap
+    let combinedCloneMutMap = filterCodonMutationMap
+                              unfilteredCombinedCloneMutMap
 
     let allImportant d p l   = l
     let important         = mostImportantCodons
