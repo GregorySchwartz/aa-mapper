@@ -1,5 +1,8 @@
-aa-mapper, Gregory W. Schwartz
+#aa-mapper
 
+**Gregory W. Schwartz**
+
+```
 Usage: aa-mapper [-o|--inputOrder ORDER] [-i|--inputFasta FILE] [-d|--inputDiversity FILE] [-t|--inputAAMapType DIVERSITY | POSITION] [-u|--nucleotides] [-m|--outputMutCounts FILE] [-s|--outputStabCounts File] [-M|--outputMutDiversityCounts FILE] [-S|--outputStabDiversityCounts FILE] [-j|--outputMutAAUse FILE] [-k|--outputStabAAUse FILE] [-r|--outputRarefaction FILE] [-c|--outputAllChangedAAMap FILE] [-y|--outputImportantChangedAAMap FILE] [-z|--outputUnimportantChangedAAMap FILE]
   Return various information about the relationship between the germline and the clones, most importantly the amino acid maps (nucleotide sequences only)
 
@@ -20,3 +23,4 @@ Available options:
   -c,--outputAllChangedAAMap FILE The output file for the map of all changed amino acids
   -y,--outputImportantChangedAAMap FILE The output file for the map of important changed amino acids
   -z,--outputUnimportantChangedAAMap FILE The output file for the map of unimportant changed amino acids
+```
