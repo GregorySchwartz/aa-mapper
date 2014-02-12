@@ -98,15 +98,17 @@ getGermImportantAA germDivMap pos genUnitList = concat
     extractMaybe (Just x) = x
     extractMaybe Nothing  = error "Diversity position not in germline positions"
 
+-- | Find the most important Codons, but built here for Septamers
 mostImportantCodons :: DiversityMap     ->
                        Position         ->
-                       [Mutation Codon] ->
-                       [Mutation Codon]
+                       [Mutation Septamer] ->
+                       [Mutation Septamer]
 mostImportantCodons germDivMap pos l  = filter isImportant l
   where
-    isImportant (x, y) = importantGerm x && importantClone y
+    isImportant (x, y) = (importantGerm . codon $ x)
+                      && (importantClone . codon $ y)
     importantGerm x    = codon2aa x `elem` importantGermlines
     importantClone y   = codon2aa y `elem` getImportantAA clones
     importantGermlines = getGermImportantAA germDivMap pos $ germlines
-    germlines          = map (codon2aa . fst) l
-    clones             = map (codon2aa . snd) l
+    germlines          = map (codon2aa . codon . fst) l
+    clones             = map (codon2aa . codon . snd) l

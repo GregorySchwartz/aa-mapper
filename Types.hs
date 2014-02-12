@@ -18,9 +18,20 @@ data ChangedAA     = ChangedAA { germlineAA      :: AminoAcid
                                , germlineCodon   :: Codon
                                , cloneCodon      :: Codon
                                , numMutations    :: Int
+                               , mutPositions    :: String
                                , sortFormatAA    :: ChangedAASort AminoAcid
                                , sortFormatCodon :: ChangedAASort Codon
+                               , germlineBefore  :: String
+                               , cloneBefore     :: String
+                               , germlineAfter   :: String
+                               , cloneAfter      :: String
                                } deriving (Eq, Ord, Show)
+-- Septamer is for Codon only, in order to find the two nucleotides before
+-- and the two after the codon for use with the mutability calculation.
+data Septamer      = Septamer { before :: String
+                              , after  :: String
+                              , codon  :: Codon
+                              } deriving (Eq, Ord, Show)
 
 -- Basic
 type AminoAcid         = Char
@@ -42,4 +53,4 @@ type PositionMap     = M.Map Position [AminoAcid]
 type DiversityMap    = M.Map Position Diversity
 -- ChangedAAMap keys can be positions or diversities
 type ChangedAAMap    = M.Map Int [ChangedAA]
-type ChangedAASort a = (a, a, Int)
+type ChangedAASort a = (a, a, Int, String, String, String, String)

@@ -1,10 +1,9 @@
--- Compare Diversity with Mutation Counts
--- By G.W. Schwartz
+-- aa-mapper
+-- By Gregory W. Schwartz
 
--- Takes a DW2 fasta file and generates the mutation counts of the clones
--- from each listed germline in the file per position in a dataframe type
--- format. For use with comparing the counts with the diversities generated
--- already.
+-- Takes a DW2 fasta file and generates the amino acid maps from each
+-- listed germline in the file per position in a dataframe type format. For
+-- use with comparing the counts with the diversities generated already.
 
 -- Built in
 import qualified Data.Map as M
@@ -159,7 +158,8 @@ geneticUnitBranch Codon opts = do
     contents <- readFile . inputFasta $ opts
     diversityContents <- readFile . inputDiversity $ opts
 
-    let viablePos     = [25..30] ++ [35..59] ++ [63..72] ++ [74..106]
+--    let viablePos     = [25..30] ++ [35..59] ++ [63..72] ++ [74..106]
+    let viablePos     = [1..30] ++ [35..59] ++ [63..72] ++ [74..106]
     let divPos        = inputAAMapType opts
     let divMap        = generateDiversityMap diversityContents
     let unfilteredCloneMap  = generateCodonCloneMap contents
@@ -172,7 +172,7 @@ geneticUnitBranch Codon opts = do
     let combinedCloneMutMap = filterCodonMutationMap
                               unfilteredCombinedCloneMutMap
 
-    let allImportant d p l   = l
+    let allImportant d p l  = l
     let important         = mostImportantCodons
     let unimportant d p l = filter (\(x, y) ->
                                     (elem x . map fst . important d p $ l) &&
@@ -210,5 +210,6 @@ main = execParser opts >>= compareDiversityMutationCounts
     opts = info (helper <*> options)
       ( fullDesc
      <> progDesc "Return various information about the relationship between\
-                 \ the germline and the clones"
-     <> header "Germline and Clone Comparison, Gregory W. Schwartz" )
+                 \ the germline and the clones, most importantly the amino\
+                 \ acid maps (nucleotide sequences only)"
+     <> header "aa-mapper, Gregory W. Schwartz" )

@@ -24,6 +24,15 @@ import Diversity
 import Translation
 import FastaDiversity
 
+-- Same as takeWhile, but also cuts off at a certain length and ignores
+-- unsatisfied predicates
+takeWhileN :: (a -> Bool) -> Int -> [a] -> [a]
+takeWhileN _ _ [] = []
+takeWhileN p n (x:xs)
+    | p x && n > 0 = x : takeWhileN p (n - 1) xs
+    | not (p x) && n > 0 = takeWhileN p n xs
+    | otherwise     = []
+
 -- Takes a fasta file string and removes newlines in the sequences to make
 -- this compatible with the fasta parser. The lineCompress function should
 -- get rid of any extra newlines messing with the code.
@@ -73,16 +82,51 @@ generateCloneMap = M.fromList . getSequences
     germline                       = take 2 . lines
     clones                         = drop 2 . lines
 
+-- | Takes in a list of Codons and finds the Septamers according to the
+-- position of the codons. For use with finding mutability for the amino
+-- acid maps.
+septize :: [Codon] -> [Septamer]
+septize xs
+    | length xs < 3 = []
+    | otherwise     = ( Septamer { before = ""
+                                 , after  = takeWhileN (/= '-') 2
+                                          . concat
+                                          . drop 1
+                                          $ xs
+                                 , codon  = head xs }
+                      : septizeR [] xs )
+  where
+    septizeR ls (x:y:z:xs)
+        | length y == 3 = Septamer { before = reverse
+                                            . takeWhileN (/= '-') 2
+                                            . concat
+                                            $ (x:ls)
+                                   , after  = takeWhileN (/= '-') 2
+                                            . concat
+                                            $ z
+                                            : xs
+                                   , codon  = y }
+                        : septizeR (x:ls) (y:z:xs)
+        | otherwise     = septizeR (x:ls) (y:z:xs)
+    septizeR ls (x:y:[])
+        | length y == 3 = Septamer { before = reverse
+                                            . takeWhileN (/= '-') 2
+                                            . concat
+                                            $ x:ls
+                                   , after  = ""
+                                   , codon  = y }
+                        : []
+        | otherwise     = []
+
 -- Takes a DW2 fasta file string and returns a CloneMap in order to
 -- generate the basic building block for the mutation counting.
 -- Note: Several repeating germlines, so they need a unique identifier (an
 -- integer in this case). This version is for Codons.
-generateCodonCloneMap :: String -> CloneMap Codon
+generateCodonCloneMap :: String -> CloneMap Septamer
 generateCodonCloneMap = M.fromList . map getCodonSplit . getSequences
   where
-    getCodonSplit ((x1, x2), xs)   = ((x1, fullCodon . Split.chunksOf 3 $ x2),
-                                      map (fullCodon . Split.chunksOf 3) xs)
-    fullCodon                      = filter ((==3) . length)
+    getCodonSplit ((x1, x2), xs)   = ((x1, septize . Split.chunksOf 3 $ x2),
+                                      map (septize . Split.chunksOf 3) xs)
     getSequences                   = map filterAssocList . assocList
     filterAssocList ((x1, x2), xs) = ((x1, last . filterHeaders $ x2),
                                       filterHeaders xs)
@@ -101,10 +145,10 @@ isMutation (x, y)
     | x == y    = False
     | otherwise = True
 
-isCodonMutation :: Mutation Codon -> Bool
+isCodonMutation :: Mutation Septamer -> Bool
 isCodonMutation (x, y)
-    | codon2aa x == codon2aa y = False
-    | otherwise                = True
+    | (codon2aa . codon $ x) == (codon2aa . codon $ y) = False
+    | otherwise                                        = True
 
 -- Checks if a pair is actually a mutation. Can only be done with codons.
 isSilentMutation :: Mutation Codon -> Bool
@@ -133,9 +177,13 @@ filterMutStab isWhat = filter filterRules
                        not (inTuple '.' x) &&
                        not (inTuple '~' x)
     inTuple c (x, y) = if x == c || y == c then True else False
-filterCodonMutStab :: (Mutation Codon -> Bool) ->
-                      [Mutation Codon]         ->
-                      [Mutation Codon]
+
+-- Takes a list of mutations and returns the mutations (or stable) that are
+-- actual mutations (the mutation is not just the same character, which is
+-- stable) with no gaps, Codon version.
+filterCodonMutStab :: (Mutation Septamer -> Bool) ->
+                      [Mutation Septamer]         ->
+                      [Mutation Septamer]
 filterCodonMutStab isWhat = filter filterRules
   where
     filterRules x    = isWhat x            &&
@@ -143,7 +191,9 @@ filterCodonMutStab isWhat = filter filterRules
                        not (inTuple '.' x) &&
                        not (inTuple '~' x) &&
                        not (inTuple 'N' x)
-    inTuple c (x, y)     = if c `elem` x || c `elem` y then True else False
+    inTuple c (x, y)
+        | c `elem` codon x || c `elem` codon y = True
+        | otherwise                            = False
 
 -- Filters the cloneMap to remove clones with 30 mutations or greater
 filterCloneMap :: CloneMap AminoAcid -> CloneMap AminoAcid
@@ -160,16 +210,16 @@ filterCloneMap = M.mapWithKey filterMutated
 -- Filters the cloneMap to remove clones with 30 mutations or greater, this
 -- is the nucleotide version. There is too much adhoc going on here,
 -- I don't like the state of this file.
-filterCodonCloneMap :: CloneMap Codon -> CloneMap Codon
+filterCodonCloneMap :: CloneMap Septamer -> CloneMap Septamer
 filterCodonCloneMap = M.mapWithKey filterMutated
   where
     filterMutated k xs  = filter (not . isHighlyMutated (snd k)) xs
     isHighlyMutated k x = ((genericLength x :: Double) / 3)
                        <= ((genericLength . realMutations k $ x) :: Double)
-    realMutations k x   = filterCodonMutStab isCodonMutation .
-                          map snd                      .
-                          countMutations k             $
-                          x
+    realMutations k x   = filterCodonMutStab isCodonMutation
+                        . map snd
+                        . countMutations k
+                        $ x
 
 -- Join together mutation lists
 joinMutations :: (Eq a) => [[(Position, Mutation a)]] -> MutationMap a
@@ -184,12 +234,12 @@ generateCloneMutMap = M.mapWithKey gatherMutations
     gatherMutations k xs = joinMutations . map (countMutations (snd k)) $ xs
 
 -- Take out gaps from the MutationMap Codon
-filterCodonMutationMap :: MutationMap Codon -> MutationMap Codon
+filterCodonMutationMap :: MutationMap Septamer -> MutationMap Septamer
 filterCodonMutationMap = M.filter (not . null) . M.map (filter removeGaps)
   where
     removeGaps (x, y)
-        | elem '-' x || elem '-' y = False
-        | otherwise                = True
+        | (elem '-' . codon $ x) || (elem '-' . codon $ y) = False
+        | otherwise                                        = True
 
 -- Take out gaps from the MutationMap AminoAcid
 filterAminoAcidMutationMap :: MutationMap AminoAcid -> MutationMap AminoAcid
@@ -206,10 +256,10 @@ generateChangedAAMap :: DivPos
                      -> [Int]
                      -> ( DiversityMap
                        -> Position
-                       -> [Mutation Codon]
-                       -> [Mutation Codon] )
+                       -> [Mutation Septamer]
+                       -> [Mutation Septamer] )
                      -> DiversityMap
-                     -> MutationMap Codon
+                     -> MutationMap Septamer
                      -> ChangedAAMap
 generateChangedAAMap isPos
                      viablePos
@@ -223,22 +273,48 @@ generateChangedAAMap isPos
   where
     aaDivPosMap                = M.map (\xs -> map numMut $ xs)
     realMutMap                 = M.map (filterCodonMutStab isCodonMutation)
-    numMut (x, y)              = ChangedAA { germlineAA    = codon2aa x
-                                           , cloneAA       = codon2aa y
-                                           , germlineCodon = x
-                                           , cloneCodon    = y
-                                           , numMutations  = hamming x y
-                                           , sortFormatAA  = formAA x y
+    numMut (x, y)              = ChangedAA { germlineAA      = c2aaSept x
+                                           , cloneAA         = c2aaSept y
+                                           , germlineCodon   = codon x
+                                           , cloneCodon      = codon y
+                                           , numMutations    = hamming (codon x)
+                                                                       (codon y)
+                                           , mutPositions    = findMutPos
+                                                               (codon x)
+                                                               (codon y)
+                                           , sortFormatAA    = formAA x y
                                            , sortFormatCodon = formCodon x y
-                                            }
-    formAA x y                 = (codon2aa x, codon2aa y, hamming x y)
-    formCodon x y              = (x, y, hamming x y)
+                                           , germlineBefore  = before x
+                                           , cloneBefore     = before y
+                                           , germlineAfter   = after x
+                                           , cloneAfter      = after y
+                                           }
+    formAA x y                 = ( c2aaSept x
+                                 , c2aaSept y
+                                 , hamming (codon x) (codon y)
+                                 , before x
+                                 , before y
+                                 , after x
+                                 , after y )
+    formCodon x y              = ( codon x
+                                 , codon y
+                                 , hamming (codon x) (codon y)
+                                 , before x
+                                 , before y
+                                 , after x
+                                 , after y )
     filterNonviablePos         = M.filterWithKey (\k _ -> elem k viablePos)
     makeDiversityMap Diversity = map keysToDiversity .  M.toAscList
     makeDiversityMap Position  = map keysToPos . M.toAscList
     keysToDiversity (x, xs)    = (getDiversity x, important germDivMap x xs)
     keysToPos (x, xs)          = (x, important germDivMap x xs)
     getDiversity x             = extractMaybe . M.lookup x $ germDivMap
+    findMutPos x y             = concatMap (\(p, _) -> show p)
+                               . filter (\(p, (a, b)) -> a /= b)
+                               . zip [1..]
+                               . zip x
+                               $ y
+    c2aaSept                   = codon2aa . codon
     extractMaybe (Just x)      = x
     extractMaybe Nothing       = error "Clone position not found"
 
@@ -368,9 +444,13 @@ printChangedAAMap :: DivPos -> ChangedAAMap -> String
 printChangedAAMap divPos changedAAMap = header divPos ++ body
   where
     header Diversity      = "diversity,germline,clone,germline_codon,\
-                            \clone_codon,mutations,size\n"
+                            \clone_codon,germline_before,germline_after,\
+                            \clone_before,clone_after,mutations,\
+                            \mutation_position,size\n"
     header Position       = "position,germline,clone,germline_codon,\
-                            \clone_codon,mutations,size\n"
+                            \clone_codon,germline_before,germline_after,\
+                            \clone_before,clone_after,mutations,\
+                            \mutation_position,size\n"
     body                  = intercalate "\n"  .
                             map mapDiv        .
                             M.toAscList       .
@@ -378,17 +458,17 @@ printChangedAAMap divPos changedAAMap = header divPos ++ body
                             changedAAMap
     mapDiv (div, xs)      = intercalate "\n" . map (\ys -> mapLine div ys) $ xs
     mapLine div xs        = show div ++ "," ++ lineFormat xs
-    lineFormat all@(x:xs) = [germlineAA $ x]          ++
-                            ","                       ++
-                            [cloneAA $ x]             ++
-                            ","                       ++
-                            germlineCodon x           ++
-                            ","                       ++
-                            cloneCodon x              ++
-                            ","                       ++
-                            (show . numMutations $ x) ++
-                            ","                       ++
-                            (show . length $ all)
+    lineFormat all@(x:xs) = intercalate "," [ germlineAA x : []
+                                            , cloneAA x : []
+                                            , germlineCodon x
+                                            , cloneCodon x
+                                            , germlineBefore x
+                                            , germlineAfter x
+                                            , cloneBefore x
+                                            , cloneAfter x
+                                            , (show . numMutations $ x)
+                                            , mutPositions x
+                                            , (show . length $ all) ]
     countGroups           = groupBy groupFormat .
                             sortBy (comparing sortFormatCodon)
     groupFormat x y       = sortFormatCodon x == sortFormatCodon y
