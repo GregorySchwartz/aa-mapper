@@ -3,7 +3,7 @@
 **Gregory W. Schwartz**
 
 ```
-Usage: aa-mapper [-o|--inputOrder ORDER] [-i|--inputFasta FILE] [-d|--inputDiversity FILE] [-t|--inputAAMapType DIVERSITY | POSITION] [-u|--nucleotides] [-m|--outputMutCounts FILE] [-s|--outputStabCounts File] [-M|--outputMutDiversityCounts FILE] [-S|--outputStabDiversityCounts FILE] [-j|--outputMutAAUse FILE] [-k|--outputStabAAUse FILE] [-r|--outputRarefaction FILE] [-c|--outputAllChangedAAMap FILE] [-y|--outputImportantChangedAAMap FILE] [-z|--outputUnimportantChangedAAMap FILE]
+Usage: aa-mapper [-o|--inputOrder ORDER] [-i|--inputFasta FILE] [-d|--inputDiversity FILE] [-t|--inputAAMapType DIVERSITY | POSITION] [-u|--nucleotides] [-n|--noMutations] [-m|--outputMutCounts FILE] [-s|--outputStabCounts File] [-M|--outputMutDiversityCounts FILE] [-S|--outputStabDiversityCounts FILE] [-j|--outputMutAAUse FILE] [-k|--outputStabAAUse FILE] [-r|--outputRarefaction FILE] [-c|--outputAllChangedAAMap FILE] [-y|--outputImportantChangedAAMap FILE] [-z|--outputUnimportantChangedAAMap FILE]
   Return various information about the relationship between the germline and the clones, most importantly the amino acid maps (nucleotide sequences only)
 
 Available options:
@@ -13,6 +13,7 @@ Available options:
   -d,--inputDiversity FILE The csv file containing the diversities at each position (must be generated into a specific format)
   -t,--inputAAMapType DIVERSITY | POSITION Whether to split the amino acid map by position or diversity
   -u,--nucleotides         Whether these sequences are of nucleotides (Codon) or amino acids (AminoAcid)
+  -n,--noMutations         Whether to look at the codons from a fasta file, not from a germline to a clone sequence of mutations but rather (ideally) from a germline only
   -m,--outputMutCounts FILE The output file for the changed amino acid counts
   -s,--outputStabCounts File The output file for the maintained amino acid counts
   -M,--outputMutDiversityCounts FILE The output file for the hanged amino acid diversities
