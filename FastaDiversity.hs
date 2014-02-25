@@ -34,7 +34,7 @@ generatePositionMap = M.fromListWith (++) . posSeqList
     toList (x, y) = (x, [y])
 
 -- Generate  DiversityMap which contains the germline diversity at each
--- position.
+-- position. Only supports heavy chain at the moment.
 generateDiversityMap :: String -> DiversityMap
 generateDiversityMap = M.fromList . map diverseTuple . csvFilter . csvParse
   where
@@ -112,3 +112,16 @@ mostImportantCodons germDivMap pos l  = filter isImportant l
     importantGermlines = getGermImportantAA germDivMap pos $ germlines
     germlines          = map (codon2aa . codon . fst) l
     clones             = map (codon2aa . codon . snd) l
+
+-- | Find the most important Codons, but built here for Septamers and
+-- maps of septamers instead of mutations.
+mostImportantCodonsSep :: DiversityMap
+                       -> Position
+                       -> [Septamer]
+                       -> [Septamer]
+mostImportantCodonsSep germDivMap pos l  = filter isImportant l
+  where
+    isImportant x = importantGerm . codon $ x
+    importantGerm x    = codon2aa x `elem` importantGermlines
+    importantGermlines = getGermImportantAA germDivMap pos $ germlines
+    germlines          = map (codon2aa . codon) l

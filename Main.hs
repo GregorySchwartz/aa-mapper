@@ -13,8 +13,9 @@ import Options.Applicative
 
 -- Local
 import Types
-import CompareDiversityMutationCount
 import FastaDiversity
+import CompareDiversityMutationCount
+import Print
 
 -- Command line arguments
 data Options = Options { inputOrder                    :: Double
@@ -22,6 +23,7 @@ data Options = Options { inputOrder                    :: Double
                        , inputDiversity                :: String
                        , inputAAMapType                :: DivPos
                        , unitFlag                      :: GeneticUnit
+                       , noMutations                   :: Bool
                        , outputMutCounts               :: String
                        , outputStabCounts              :: String
                        , outputMutDiversityCounts      :: String
@@ -29,9 +31,9 @@ data Options = Options { inputOrder                    :: Double
                        , outputMutAAUse                :: String
                        , outputStabAAUse               :: String
                        , outputRarefaction             :: String
-                       , outputAllChangedAAMap         :: String
-                       , outputImportantChangedAAMap   :: String
-                       , outputUnimportantChangedAAMap :: String
+                       , outputAllAAMap                :: String
+                       , outputImportantAAMap          :: String
+                       , outputUnimportantAAMap        :: String
                        }
 
 -- Command line options
@@ -68,6 +70,12 @@ options = Options
          <> short 'u'
          <> help "Whether these sequences are of nucleotides (Codon) or\
                  \ amino acids (AminoAcid)" )
+      <*> switch
+          ( long "noMutations"
+         <> short 'n'
+         <> help "Whether to look at the codons from a fasta file, not\
+                 \ from a germline to a clone sequence of mutations\
+                 \ but rather (ideally) from a germline only" )
       <*> strOption
           ( long "outputMutCounts"
          <> short 'm'
@@ -172,7 +180,7 @@ geneticUnitBranch Codon opts = do
     let combinedCloneMutMap = filterCodonMutationMap
                               unfilteredCombinedCloneMutMap
 
-    let allImportant d p l  = l
+    let allImportant _ _ l  = l
     let important         = mostImportantCodons
     let unimportant d p l = filter (\(x, y) ->
                                     (elem x . map fst . important d p $ l) &&
@@ -193,16 +201,56 @@ geneticUnitBranch Codon opts = do
                                                        divMap
                                                        combinedCloneMutMap
 
-    writeFile (outputAllChangedAAMap opts) $
+    writeFile (outputAllAAMap opts) $
               printChangedAAMap divPos changedAAMap
-    writeFile (outputImportantChangedAAMap opts) $
+    writeFile (outputImportantAAMap opts) $
               printChangedAAMap divPos importantChangedAAMap
-    writeFile (outputUnimportantChangedAAMap opts) $
+    writeFile (outputUnimportantAAMap opts) $
               printChangedAAMap divPos unimportantChangedAAMap
+
+aaMapperNoMutations opts = do
+    contents <- readFile . inputFasta $ opts
+    diversityContents <- readFile . inputDiversity $ opts
+
+--    let viablePos     = [25..30] ++ [35..59] ++ [63..72] ++ [74..106]
+    let viablePos = [1..30] ++ [35..59] ++ [63..72] ++ [74..106]
+    let divPos                = inputAAMapType opts
+    let divMap                = generateDiversityMap diversityContents
+    let fastaList             = fastaParser contents
+    let unfilteredFastaSepMap = generateFastaSepMap fastaList
+    let fastaSepMap           = filterFastaSepMap unfilteredFastaSepMap
+
+    let allImportant _ _ l = l
+    let important         = mostImportantCodonsSep
+    let unimportant d p l = filter (\x -> notElem x . important d p $ l) l
+    let sepAAMap = generateSepAAMap divPos
+                                    viablePos
+                                    allImportant
+                                    divMap
+                                    fastaSepMap
+    let importantSepAAMap = generateSepAAMap divPos
+                                             viablePos
+                                             important
+                                             divMap
+                                             fastaSepMap
+    let unimportantSepAAMap = generateSepAAMap divPos
+                                               viablePos
+                                               unimportant
+                                               divMap
+                                               fastaSepMap
+
+    writeFile (outputAllAAMap opts) $
+              printSepAAMap divPos sepAAMap
+    writeFile (outputImportantAAMap opts) $
+              printSepAAMap divPos importantSepAAMap
+    writeFile (outputUnimportantAAMap opts) $
+              printSepAAMap divPos unimportantSepAAMap
 
 compareDiversityMutationCounts :: Options -> IO ()
 compareDiversityMutationCounts opts = do
-    geneticUnitBranch (unitFlag opts) opts
+    if (noMutations opts)
+        then aaMapperNoMutations opts
+        else geneticUnitBranch (unitFlag opts) opts
 
 main :: IO ()
 main = execParser opts >>= compareDiversityMutationCounts

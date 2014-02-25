@@ -233,6 +233,13 @@ generateCloneMutMap = M.mapWithKey gatherMutations
   where
     gatherMutations k xs = joinMutations . map (countMutations (snd k)) $ xs
 
+-- Convert a list of fasta sequences to a map of septamers at each
+-- position.
+generateFastaSepMap :: [FastaSequence] -> SeptamerMap
+generateFastaSepMap = M.fromListWith (++) . concatMap (zip [1..] . fastaToSep)
+  where
+    fastaToSep = map (:[]) . septize . Split.chunksOf 3 . fastaSeq
+
 -- Take out gaps from the MutationMap Codon
 filterCodonMutationMap :: MutationMap Septamer -> MutationMap Septamer
 filterCodonMutationMap = M.filter (not . null) . M.map (filter removeGaps)
@@ -240,6 +247,14 @@ filterCodonMutationMap = M.filter (not . null) . M.map (filter removeGaps)
     removeGaps (x, y)
         | (elem '-' . codon $ x) || (elem '-' . codon $ y) = False
         | otherwise                                        = True
+
+-- Take out gaps from a map of septamers at each position
+filterFastaSepMap :: SeptamerMap -> SeptamerMap
+filterFastaSepMap = M.filter (not . null) . M.map (filter removeGaps)
+  where
+    removeGaps x
+        | (elem '-' . codon $ x) = False
+        | otherwise              = True
 
 -- Take out gaps from the MutationMap AminoAcid
 filterAminoAcidMutationMap :: MutationMap AminoAcid -> MutationMap AminoAcid
@@ -249,7 +264,7 @@ filterAminoAcidMutationMap = M.filter (not . null) . M.map (filter removeGaps)
         | x == '-' || y == '-' = False
         | otherwise            = True
 
--- Generate a ChangedAAMap which contains all of the aminoacids a certain
+-- Generate a ChangedAAMap which contains all of the amino acids a certain
 -- amino acid at a certain diversity goes to. Also supports what a position
 -- can go to as well using a flag in the input.
 generateChangedAAMap :: DivPos
@@ -318,6 +333,54 @@ generateChangedAAMap isPos
     extractMaybe (Just x)      = x
     extractMaybe Nothing       = error "Clone position not found"
 
+-- | Generate a ChangedAAMap which contains all of the amino acids a certain
+-- amino acid at a certain diversity goes to. Also supports what a position
+-- can go to as well using a flag in the input. This version is for the no
+-- mutations pathway.
+generateSepAAMap :: DivPos
+                 -> [Int]
+                 -> ( DiversityMap
+                   -> Position
+                   -> [Septamer]
+                   -> [Septamer] )
+                 -> DiversityMap
+                 -> SeptamerMap
+                 -> SepAAMap
+generateSepAAMap isPos
+                 viablePos
+                 important
+                 germDivMap = aaDivPosMap
+                            . M.filter (not . null)
+                            . M.fromListWith (++)
+                            . makeDiversityMap isPos
+                            . filterNonviablePos
+  where
+    aaDivPosMap                = M.map (map numSep)
+    numSep x                   = SepAA { seqAA     = c2aaSept x
+                                       , seqCodon  = codon x
+                                       , seqBefore = before x
+                                       , seqAfter  = after x
+                                       , sortFormatSepAA    = formAA x
+                                       , sortFormatSepCodon = formCodon x
+                                       }
+    formAA x                   = ( c2aaSept x
+                                 , before x
+                                 , after x
+                                 )
+    formCodon x                = ( codon x
+                                 , before x
+                                 , after x
+                                 )
+    filterNonviablePos         = M.filterWithKey (\k _ -> elem k viablePos)
+    makeDiversityMap Diversity = map keysToDiversity .  M.toAscList
+    makeDiversityMap Position  = map keysToPos . M.toAscList
+    keysToDiversity (x, xs)    = (getDiversity x, important germDivMap x xs)
+    keysToPos (x, xs)          = (x, important germDivMap x xs)
+    getDiversity x             = extractMaybe . M.lookup x $ germDivMap
+    c2aaSept                   = codon2aa . codon
+    extractMaybe (Just x)      = x
+    extractMaybe Nothing       = error "Clone position not found"
+
 -- Classify a list of amino acids as a certain kind of hydrophobicity
 classifyAA :: Char -> String
 classifyAA aa
@@ -353,122 +416,3 @@ classifyPosition aaList
     sortedList       = groupLengthSort    .
                        filter (/= "Stop") .
                        map classifyAA $ aaList
-
--- Return the results of the mutation or stable counts as a string
-printMutStabCounts :: Bool -> MutationMap AminoAcid -> String
-printMutStabCounts mutBool mutationMap = header ++ body
-  where
-    header           = "position,count,count_weight,hydrophobicity\n"
-    body             = unlines                          .
-                       map mapLine                      .
-                       M.toAscList                      $
-                       mutationMap
-    mapLine (x, xs) = show x                                            ++
-                      ","                                               ++
-                      (show . length . mutList $ xs)                    ++
-                      ","                                               ++
-                      (show . length . filterMutStab (\_ -> True) $ xs) ++
-                      ","                                               ++
-                      (classifyPosition . nub . getImportantAA . mutList $ xs)
-    mutList          = map toUpper . mutUniquer mutBool
-    mutUniquer True  = map snd . filterMutStab isMutation
-    mutUniquer False = map fst . filterMutStab (not . isMutation)
-
--- Return the results of the different types of mutations or stable  as a
--- string. Can basically just add "nub" with "snd" to mapLine. Awwwwwww yeah.
--- The power of functional programming. :P
-printMutStabTypeCounts :: Bool -> Double -> MutationMap AminoAcid -> String
-printMutStabTypeCounts mutBool order mutationMap = header ++ body
-  where
-    header           = "position,count,count_weight,hydrophobicity\n"
-    body             = unlines                          .
-                       map mapLine                      .
-                       M.toAscList                      $
-                       mutationMap
-    mapLine (x, xs) = show x                                            ++
-                      ","                                               ++
-                      (show . diversity order . mutList $ xs)           ++
-                      ","                                               ++
-                      (show . length . filterMutStab (\_ -> True) $ xs) ++
-                      ","                                               ++
-                      (classifyPosition . nub . getImportantAA . mutList $ xs)
-    mutList          = map toUpper . mutUniquer mutBool
-    mutUniquer True  = map snd . filterMutStab isMutation
-    mutUniquer False = map fst . filterMutStab (not . isMutation)
-
-printMutStabAAUse :: Bool -> MutationMap AminoAcid -> String
-printMutStabAAUse mutBool mutationMap = header ++ body
-  where
-    header           = "position,aa_use,count,count_weight\n"
-    body             = concat              .
-                       map mapPositionLine .
-                       M.toAscList         $
-                       mutationMap
-    mapPositionLine (x, xs) = unlines                 .
-                              map (mapAALine x count) .
-                              groupLengthSort         .
-                              getImportantAA          $
-                              mutList
-      where
-        count      = length mutList
-        mutList    = map toUpper . mutUniquer mutBool $ xs
-    mapAALine x weight xs = show x       ++
-                            ","          ++
-                            showAAUse xs ++
-                            ","          ++
-                            show weight
-    showAAUse []           = "0, 0"
-    showAAUse total@(x:xs) = x : ("," ++ (show . length $ total))
-    mutUniquer True        = map snd . filterMutStab isMutation
-    mutUniquer False       = map fst . filterMutStab (not . isMutation)
-
--- Return the results of the sample rarefaction percents as a string
-printRarefaction :: MutationMap AminoAcid -> String
-printRarefaction mutationMap = header ++ body
-  where
-    header           = "position,percent_above\n"
-    body             = unlines                          .
-                       map mapLine                      .
-                       M.toAscList                      $
-                       mutationMap
-    mapLine (x, xs) = show x ++
-                      ","    ++
-                      (show . percent $ xs)
-    percent         = rarefactionViable . rarefactionCurve . mutList
-    mutList         = filterMutStab taut
-    taut _          = True
-
--- Return the ChangedAAMap as a string for saving to a file, either with
--- positions or diversities specified by the input
-printChangedAAMap :: DivPos -> ChangedAAMap -> String
-printChangedAAMap divPos changedAAMap = header divPos ++ body
-  where
-    header Diversity      = "diversity,germline,clone,germline_codon,\
-                            \clone_codon,germline_before,germline_after,\
-                            \clone_before,clone_after,mutations,\
-                            \mutation_position,size\n"
-    header Position       = "position,germline,clone,germline_codon,\
-                            \clone_codon,germline_before,germline_after,\
-                            \clone_before,clone_after,mutations,\
-                            \mutation_position,size\n"
-    body                  = intercalate "\n"  .
-                            map mapDiv        .
-                            M.toAscList       .
-                            M.map countGroups $
-                            changedAAMap
-    mapDiv (div, xs)      = intercalate "\n" . map (\ys -> mapLine div ys) $ xs
-    mapLine div xs        = show div ++ "," ++ lineFormat xs
-    lineFormat all@(x:xs) = intercalate "," [ germlineAA x : []
-                                            , cloneAA x : []
-                                            , germlineCodon x
-                                            , cloneCodon x
-                                            , germlineBefore x
-                                            , germlineAfter x
-                                            , cloneBefore x
-                                            , cloneAfter x
-                                            , (show . numMutations $ x)
-                                            , mutPositions x
-                                            , (show . length $ all) ]
-    countGroups           = groupBy groupFormat .
-                            sortBy (comparing sortFormatCodon)
-    groupFormat x y       = sortFormatCodon x == sortFormatCodon y
