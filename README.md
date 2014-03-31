@@ -2,6 +2,16 @@
 
 **Gregory W. Schwartz**
 
+This program will take a CLIP fasta file and find the amino acid usage for
+mutations from the germline to the clone sequences.
+
+To install:
+```
+cabal configure
+cabal build
+cabal install
+```
+
 ```
 aa-mapper, Gregory W. Schwartz
 
