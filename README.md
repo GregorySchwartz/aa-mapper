@@ -3,25 +3,27 @@
 **Gregory W. Schwartz**
 
 ```
-Usage: aa-mapper [-o|--inputOrder ORDER] [-i|--inputFasta FILE] [-d|--inputDiversity FILE] [-t|--inputAAMapType DIVERSITY | POSITION] [-u|--nucleotides] [-n|--noMutations] [-m|--outputMutCounts FILE] [-s|--outputStabCounts File] [-M|--outputMutDiversityCounts FILE] [-S|--outputStabDiversityCounts FILE] [-j|--outputMutAAUse FILE] [-k|--outputStabAAUse FILE] [-r|--outputRarefaction FILE] [-c|--outputAllChangedAAMap FILE] [-y|--outputImportantChangedAAMap FILE] [-z|--outputUnimportantChangedAAMap FILE]
+aa-mapper, Gregory W. Schwartz
+
+Usage: aa-mapper [-o|--input-order ORDER] [-i|--input-fasta FILE] [-d|--input-diversity FILE] [-t|--input-AA-map-type DIVERSITY | POSITION] [-u|--nucleotides] [-n|--no-mutations] [-m|--output-mut-counts FILE] [-s|--output-stab-counts File] [-M|--output-mut-diversity-counts FILE] [-S|--output-stab-diversity-counts FILE] [-j|--output-mut-AA-use FILE] [-k|--output-stab-AA-use FILE] [-r|--output-rarefaction FILE] [-c|--output-all-changed-AA-map FILE] [-y|--output-important-changedAA-map FILE] [-z|--output-unimportant-changed-AA-map FILE]
   Return various information about the relationship between the germline and the clones, most importantly the amino acid maps (nucleotide sequences only)
 
 Available options:
   -h,--help                Show this help text
-  -o,--inputOrder ORDER    The order of true diversity
-  -i,--inputFasta FILE     The fasta file containing the germlines and clones
-  -d,--inputDiversity FILE The csv file containing the diversities at each position (must be generated into a specific format)
-  -t,--inputAAMapType DIVERSITY | POSITION Whether to split the amino acid map by position or diversity
+  -o,--input-order ORDER   The order of true diversity
+  -i,--input-fasta FILE    The fasta file containing the germlines and clones
+  -d,--input-diversity FILE The csv file containing the diversities at each position (must be generated into a specific format)
+  -t,--input-AA-map-type DIVERSITY | POSITION Whether to split the amino acid map by position or diversity
   -u,--nucleotides         Whether these sequences are of nucleotides (Codon) or amino acids (AminoAcid)
-  -n,--noMutations         Whether to look at the codons from a fasta file, not from a germline to a clone sequence of mutations but rather (ideally) from a germline only
-  -m,--outputMutCounts FILE The output file for the changed amino acid counts
-  -s,--outputStabCounts File The output file for the maintained amino acid counts
-  -M,--outputMutDiversityCounts FILE The output file for the hanged amino acid diversities
-  -S,--outputStabDiversityCounts FILE The output file for the maintained amino acid diversities
-  -j,--outputMutAAUse FILE The output file for the specific changed amino acids used
-  -k,--outputStabAAUse FILE The output file for the specific maintained amino acids used
-  -r,--outputRarefaction FILE The output file for the rarefaction curves
-  -c,--outputAllChangedAAMap FILE The output file for the map of all changed amino acids
-  -y,--outputImportantChangedAAMap FILE The output file for the map of important changed amino acids
-  -z,--outputUnimportantChangedAAMap FILE The output file for the map of unimportant changed amino acids
+  -n,--no-mutations        Whether to look at the codons from a fasta file, not from a germline to a clone sequence of mutations but rather (ideally) from a germline only
+  -m,--output-mut-counts FILE The output file for the changed amino acid counts
+  -s,--output-stab-counts File The output file for the maintained amino acid counts
+  -M,--output-mut-diversity-counts FILE The output file for the hanged amino acid diversities
+  -S,--output-stab-diversity-counts FILE The output file for the maintained amino acid diversities
+  -j,--output-mut-AA-use FILE The output file for the specific changed amino acids used
+  -k,--output-stab-AA-use FILE The output file for the specific maintained amino acids used
+  -r,--output-rarefaction FILE The output file for the rarefaction curves
+  -c,--output-all-changed-AA-map FILE The output file for the map of all changed amino acids
+  -y,--output-important-changedAA-map FILE The output file for the map of important changed amino acids
+  -z,--output-unimportant-changed-AA-map FILE The output file for the map of unimportant changed amino acids
 ```

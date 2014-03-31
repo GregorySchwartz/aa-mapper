@@ -40,26 +40,26 @@ data Options = Options { inputOrder                    :: Double
 options :: Parser Options
 options = Options
       <$> option
-          ( long "inputOrder"
+          ( long "input-order"
          <> short 'o'
          <> metavar "ORDER"
          <> value 1
          <> help "The order of true diversity" )
       <*> strOption
-          ( long "inputFasta"
+          ( long "input-fasta"
          <> short 'i'
          <> metavar "FILE"
          <> value ""
          <> help "The fasta file containing the germlines and clones" )
       <*> strOption
-          ( long "inputDiversity"
+          ( long "input-diversity"
          <> short 'd'
          <> metavar "FILE"
          <> value ""
          <> help "The csv file containing the diversities at each position\
                  \ (must be generated into a specific format)" )
       <*> option
-          ( long "inputAAMapType"
+          ( long "input-AA-map-type"
          <> short 't'
          <> metavar "DIVERSITY | POSITION"
          <> value Diversity
@@ -71,68 +71,68 @@ options = Options
          <> help "Whether these sequences are of nucleotides (Codon) or\
                  \ amino acids (AminoAcid)" )
       <*> switch
-          ( long "noMutations"
+          ( long "no-mutations"
          <> short 'n'
          <> help "Whether to look at the codons from a fasta file, not\
                  \ from a germline to a clone sequence of mutations\
                  \ but rather (ideally) from a germline only" )
       <*> strOption
-          ( long "outputMutCounts"
+          ( long "output-mut-counts"
          <> short 'm'
          <> metavar "FILE"
          <> value ""
          <> help "The output file for the changed amino acid counts" )
       <*> strOption
-          ( long "outputStabCounts"
+          ( long "output-stab-counts"
          <> short 's'
          <> metavar "File"
          <> value ""
          <> help "The output file for the maintained amino acid counts" )
       <*> strOption
-          ( long "outputMutDiversityCounts"
+          ( long "output-mut-diversity-counts"
          <> short 'M'
          <> metavar "FILE"
          <> value ""
          <> help "The output file for the hanged amino acid diversities" )
       <*> strOption
-          ( long "outputStabDiversityCounts"
+          ( long "output-stab-diversity-counts"
          <> short 'S'
          <> metavar "FILE"
          <> value ""
          <> help "The output file for the maintained amino acid diversities")
       <*> strOption
-          ( long "outputMutAAUse"
+          ( long "output-mut-AA-use"
          <> short 'j'
          <> metavar "FILE"
          <> value ""
          <> help "The output file for the specific changed amino acids used" )
       <*> strOption
-          ( long "outputStabAAUse"
+          ( long "output-stab-AA-use"
          <> short 'k'
          <> metavar "FILE"
          <> value ""
          <> help "The output file for the specific maintained amino acids used" )
       <*> strOption
-          ( long "outputRarefaction"
+          ( long "output-rarefaction"
          <> short 'r'
          <> metavar "FILE"
          <> value ""
          <> help "The output file for the rarefaction curves" )
       <*> strOption
-          ( long "outputAllChangedAAMap"
+          ( long "output-all-changed-AA-map"
          <> short 'c'
          <> metavar "FILE"
          <> value ""
          <> help "The output file for the map of all changed amino acids" )
       <*> strOption
-          ( long "outputImportantChangedAAMap"
+          ( long "output-important-changedAA-map"
          <> short 'y'
          <> metavar "FILE"
          <> value ""
          <> help "The output file for the map of important changed\
                  \ amino acids" )
       <*> strOption
-          ( long "outputUnimportantChangedAAMap"
+          ( long "output-unimportant-changed-AA-map"
          <> short 'z'
          <> metavar "FILE"
          <> value ""
