@@ -7,8 +7,7 @@ mutations from the germline to the clone sequences.
 
 To install:
 ```
-cabal configure
-cabal build
+cabal update
 cabal install
 ```
 
