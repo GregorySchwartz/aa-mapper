@@ -125,7 +125,7 @@ options = Options
          <> value ""
          <> help "The output file for the map of all changed amino acids" )
       <*> strOption
-          ( long "output-important-changedAA-map"
+          ( long "output-important-changed-AA-map"
          <> short 'y'
          <> metavar "FILE"
          <> value ""
