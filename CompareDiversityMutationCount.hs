@@ -266,7 +266,8 @@ filterAminoAcidMutationMap = M.filter (not . null) . M.map (filter removeGaps)
 
 -- Generate a ChangedAAMap which contains all of the amino acids a certain
 -- amino acid at a certain diversity goes to. Also supports what a position
--- can go to as well using a flag in the input.
+-- can go to as well using a flag in the input. Also keeps track of a lack
+-- of mutations.
 generateChangedAAMap :: DivPos
                      -> [Int]
                      -> ( DiversityMap
@@ -287,7 +288,7 @@ generateChangedAAMap isPos
                                   realMutMap
   where
     aaDivPosMap                = M.map (\xs -> map numMut $ xs)
-    realMutMap                 = M.map (filterCodonMutStab isCodonMutation)
+    realMutMap                 = M.map (filterCodonMutStab (\_ -> True))
     numMut (x, y)              = ChangedAA { germlineAA      = c2aaSept x
                                            , cloneAA         = c2aaSept y
                                            , germlineCodon   = codon x

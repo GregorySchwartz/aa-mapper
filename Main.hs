@@ -39,7 +39,7 @@ data Options = Options { inputOrder                    :: Double
 -- Command line options
 options :: Parser Options
 options = Options
-      <$> option
+      <$> option auto
           ( long "input-order"
          <> short 'o'
          <> metavar "ORDER"
@@ -58,7 +58,7 @@ options = Options
          <> value ""
          <> help "The csv file containing the diversities at each position\
                  \ (must be generated into a specific format)" )
-      <*> option
+      <*> option auto
           ( long "input-AA-map-type"
          <> short 't'
          <> metavar "DIVERSITY | POSITION"
