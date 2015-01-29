@@ -137,7 +137,7 @@ printChangedAAMap divPos changedAAMap = header divPos ++ body
     countGroups           = groupBy groupFormat .
                             sortBy (comparing sortFormatCodon)
     groupFormat x y       = sortFormatCodon x == sortFormatCodon y
-    mutType x             = if germlineCodon x == cloneCodon x
+    mutType x             = if germlineCodon x /= cloneCodon x
                                 then
                                     if germlineAA x == cloneAA x
                                         then "silent"
