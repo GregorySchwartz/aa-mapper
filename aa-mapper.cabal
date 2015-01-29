@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                aa-mapper
-version:             0.1.0.0
+version:             0.1.1.0
 synopsis:              Return various information about the relationship between the germline and the clones, most importantly the amino acid maps (nucleotide sequences only)
 -- description:         
 homepage:            https://github.com/GregorySchwartz/aa-mapper
