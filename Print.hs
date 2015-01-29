@@ -114,7 +114,7 @@ printChangedAAMap divPos changedAAMap = header divPos ++ body
     header Position       = "position,germline,clone,germline_codon,\
                             \clone_codon,germline_before,germline_after,\
                             \clone_before,clone_after,mutations,\
-                            \mutation_position,size,type\n"
+                            \mutation_position,size,type,same_septamer\n"
     body                  = intercalate "\n"  .
                             map mapDiv        .
                             M.toAscList       .
@@ -133,7 +133,8 @@ printChangedAAMap divPos changedAAMap = header divPos ++ body
                                             , (show . numMutations $ x)
                                             , mutPositions x
                                             , (show . length $ all)
-                                            , mutType x ]
+                                            , mutType x
+                                            , sameSeptamer x ]
     countGroups           = groupBy groupFormat .
                             sortBy (comparing sortFormatCodon)
     groupFormat x y       = sortFormatCodon x == sortFormatCodon y
@@ -143,6 +144,10 @@ printChangedAAMap divPos changedAAMap = header divPos ++ body
                                         then "silent"
                                         else "replacement"
                                 else "na"
+    sameSeptamer x        = if ( (germlineBefore x == cloneBefore x)
+                              && (germlineAfter x == cloneAfter x) )
+                                then "same"
+                                else "different"
 
 -- Return the SepAAMap as a string for saving to a file, either with
 -- positions or diversities specified by the input
