@@ -221,7 +221,7 @@ filterCodonCloneMap = M.mapWithKey filterMutated
                         . countMutations k
                         $ x
 
--- Join together mutation lists
+-- Join together mutation lists of unique mutations per clone
 joinMutations :: (Eq a) => [[(Position, Mutation a)]] -> MutationMap a
 joinMutations = M.map nub . groupedMutations
   where
