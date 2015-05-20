@@ -93,7 +93,7 @@ options = Options
          <> short 'M'
          <> metavar "FILE"
          <> value ""
-         <> help "The output file for the hanged amino acid diversities" )
+         <> help "The output file for the changed amino acid diversities" )
       <*> strOption
           ( long "output-stab-diversity-counts"
          <> short 'S'
@@ -143,16 +143,16 @@ geneticUnitBranch :: GeneticUnit -> Options -> IO ()
 geneticUnitBranch AminoAcid opts = do
     contents <- readFile . inputFasta $ opts
     let contentsFormatted = joinSeq contents
-    let order = inputOrder opts
+        order = inputOrder opts
 
-    let unfilteredCloneMap  = generateCloneMap contentsFormatted
-    let cloneMap            = filterCloneMap unfilteredCloneMap
-    let cloneMutMap         = generateCloneMutMap cloneMap
-    let unfilteredCombinedCloneMutMap = M.unionsWith (++)
+        unfilteredCloneMap  = generateCloneMap contentsFormatted
+        cloneMap            = filterCloneMap unfilteredCloneMap
+        cloneMutMap         = generateCloneMutMap cloneMap
+        unfilteredCombinedCloneMutMap = M.unionsWith (++)
                                       . map snd
                                       . M.toAscList
                                       $ cloneMutMap
-    let combinedCloneMutMap = filterAminoAcidMutationMap
+        combinedCloneMutMap = filterAminoAcidMutationMap
                               unfilteredCombinedCloneMutMap
 
     writeFile (outputMutCounts opts) $ printMutStabCounts True combinedCloneMutMap
