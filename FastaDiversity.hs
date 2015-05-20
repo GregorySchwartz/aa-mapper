@@ -123,5 +123,5 @@ mostImportantCodonsSep germDivMap pos l  = filter isImportant l
   where
     isImportant x = importantGerm . codon $ x
     importantGerm x    = codon2aa x `elem` importantGermlines
-    importantGermlines = getGermImportantAA germDivMap pos $ germlines
+    importantGermlines = getGermImportantAA germDivMap pos germlines
     germlines          = map (codon2aa . codon) l

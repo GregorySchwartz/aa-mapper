@@ -269,7 +269,6 @@ filterAminoAcidMutationMap = M.filter (not . null) . M.map (filter removeGaps)
 -- can go to as well using a flag in the input. Also keeps track of a lack
 -- of mutations.
 generateChangedAAMap :: DivPos
-                     -> [Int]
                      -> ( DiversityMap
                        -> Position
                        -> [Mutation Septamer]
@@ -278,13 +277,11 @@ generateChangedAAMap :: DivPos
                      -> MutationMap Septamer
                      -> ChangedAAMap
 generateChangedAAMap isPos
-                     viablePos
                      important
                      germDivMap = aaDivPosMap            .
                                   M.filter (not . null)  .
                                   M.fromListWith (++)    .
                                   makeDiversityMap isPos .
-                                  filterNonviablePos     .
                                   realMutMap
   where
     aaDivPosMap                = M.map (\xs -> map numMut $ xs)
@@ -319,7 +316,6 @@ generateChangedAAMap isPos
                                  , before y
                                  , after x
                                  , after y )
-    filterNonviablePos         = M.filterWithKey (\k _ -> elem k viablePos)
     makeDiversityMap Diversity = map keysToDiversity .  M.toAscList
     makeDiversityMap Position  = map keysToPos . M.toAscList
     keysToDiversity (x, xs)    = (getDiversity x, important germDivMap x xs)
@@ -339,7 +335,6 @@ generateChangedAAMap isPos
 -- can go to as well using a flag in the input. This version is for the no
 -- mutations pathway.
 generateSepAAMap :: DivPos
-                 -> [Int]
                  -> ( DiversityMap
                    -> Position
                    -> [Septamer]
@@ -348,13 +343,11 @@ generateSepAAMap :: DivPos
                  -> SeptamerMap
                  -> SepAAMap
 generateSepAAMap isPos
-                 viablePos
                  important
                  germDivMap = aaDivPosMap
                             . M.filter (not . null)
                             . M.fromListWith (++)
                             . makeDiversityMap isPos
-                            . filterNonviablePos
   where
     aaDivPosMap                = M.map (map numSep)
     numSep x                   = SepAA { seqAA     = c2aaSept x
@@ -372,7 +365,6 @@ generateSepAAMap isPos
                                  , before x
                                  , after x
                                  )
-    filterNonviablePos         = M.filterWithKey (\k _ -> elem k viablePos)
     makeDiversityMap Diversity = map keysToDiversity .  M.toAscList
     makeDiversityMap Position  = map keysToPos . M.toAscList
     keysToDiversity (x, xs)    = (getDiversity x, important germDivMap x xs)

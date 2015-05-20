@@ -166,37 +166,32 @@ geneticUnitBranch Codon opts = do
     contents <- readFile . inputFasta $ opts
     diversityContents <- readFile . inputDiversity $ opts
 
---    let viablePos     = [25..30] ++ [35..59] ++ [63..72] ++ [74..106]
-    let viablePos     = [1..30] ++ [35..59] ++ [63..72] ++ [74..106]
     let divPos        = inputAAMapType opts
-    let divMap        = generateDiversityMap diversityContents
-    let unfilteredCloneMap  = generateCodonCloneMap contents
-    let cloneMap            = filterCodonCloneMap unfilteredCloneMap
-    let cloneMutMap         = generateCloneMutMap cloneMap
-    let unfilteredCombinedCloneMutMap = M.unionsWith (++)
+        divMap        = generateDiversityMap diversityContents
+        unfilteredCloneMap  = generateCodonCloneMap contents
+        cloneMap            = filterCodonCloneMap unfilteredCloneMap
+        cloneMutMap         = generateCloneMutMap cloneMap
+        unfilteredCombinedCloneMutMap = M.unionsWith (++)
                                       . map snd
                                       . M.toAscList
                                       $ cloneMutMap
-    let combinedCloneMutMap = filterCodonMutationMap
+        combinedCloneMutMap = filterCodonMutationMap
                               unfilteredCombinedCloneMutMap
 
-    let allImportant _ _ l  = l
-    let important         = mostImportantCodons
-    let unimportant d p l = filter (\(x, y) ->
+        allImportant _ _ l  = l
+        important         = mostImportantCodons
+        unimportant d p l = filter (\(x, y) ->
                                     (elem x . map fst . important d p $ l) &&
                                     (notElem y . map snd . important d p $ l)) l
-    let changedAAMap = generateChangedAAMap divPos
-                                            viablePos
+        changedAAMap = generateChangedAAMap divPos
                                             allImportant
                                             divMap
                                             combinedCloneMutMap
-    let importantChangedAAMap = generateChangedAAMap divPos
-                                                     viablePos
+        importantChangedAAMap = generateChangedAAMap divPos
                                                      important
                                                      divMap
                                                      combinedCloneMutMap
-    let unimportantChangedAAMap = generateChangedAAMap divPos
-                                                       viablePos
+        unimportantChangedAAMap = generateChangedAAMap divPos
                                                        unimportant
                                                        divMap
                                                        combinedCloneMutMap
@@ -208,33 +203,29 @@ geneticUnitBranch Codon opts = do
     writeFile (outputUnimportantAAMap opts) $
               printChangedAAMap divPos unimportantChangedAAMap
 
+aaMapperNoMutations :: Options -> IO ()
 aaMapperNoMutations opts = do
     contents <- readFile . inputFasta $ opts
     diversityContents <- readFile . inputDiversity $ opts
 
---    let viablePos     = [25..30] ++ [35..59] ++ [63..72] ++ [74..106]
-    let viablePos = [1..30] ++ [35..59] ++ [63..72] ++ [74..106]
     let divPos                = inputAAMapType opts
-    let divMap                = generateDiversityMap diversityContents
-    let fastaList             = fastaParser contents
-    let unfilteredFastaSepMap = generateFastaSepMap fastaList
-    let fastaSepMap           = filterFastaSepMap unfilteredFastaSepMap
+        divMap                = generateDiversityMap diversityContents
+        fastaList             = fastaParser contents
+        unfilteredFastaSepMap = generateFastaSepMap fastaList
+        fastaSepMap           = filterFastaSepMap unfilteredFastaSepMap
 
-    let allImportant _ _ l = l
-    let important         = mostImportantCodonsSep
-    let unimportant d p l = filter (\x -> notElem x . important d p $ l) l
-    let sepAAMap = generateSepAAMap divPos
-                                    viablePos
+        allImportant _ _ l = l
+        important         = mostImportantCodonsSep
+        unimportant d p l = filter (\x -> notElem x . important d p $ l) l
+        sepAAMap = generateSepAAMap divPos
                                     allImportant
                                     divMap
                                     fastaSepMap
-    let importantSepAAMap = generateSepAAMap divPos
-                                             viablePos
+        importantSepAAMap = generateSepAAMap divPos
                                              important
                                              divMap
                                              fastaSepMap
-    let unimportantSepAAMap = generateSepAAMap divPos
-                                               viablePos
+        unimportantSepAAMap = generateSepAAMap divPos
                                                unimportant
                                                divMap
                                                fastaSepMap
